@@ -1,0 +1,6 @@
+{
+  "name": "QR Menu",
+  "description": "Tạo menu điện tử miễn phí cho quán ăn và đồ uống, xuất mã QR cho khách quét xem menu trên điện thoại.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

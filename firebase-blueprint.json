@@ -1,0 +1,61 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile for restaurant owner",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 256 },
+        "displayName": { "type": "string", "maxLength": 128 },
+        "shops": { "type": "array", "description": "List of owned shop IDs" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "email"]
+    },
+    "Shop": {
+      "title": "Shop",
+      "description": "Restaurant record containing owner ID and draft menu data",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 128 },
+        "draft": { "type": "object", "description": "Draft menu and settings bundle" },
+        "hasPublished": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "name", "draft"]
+    },
+    "PublishedMenu": {
+      "title": "PublishedMenu",
+      "description": "Sanitized snapshot of published menu for guests scanning QR",
+      "type": "object",
+      "properties": {
+        "shopId": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "shop": { "type": "object", "description": "Public shop display info" },
+        "categories": { "type": "array", "description": "Public menu categories" },
+        "items": { "type": "array", "description": "Public menu items" },
+        "publishedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["shopId", "ownerId", "shop", "categories", "items"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private owner profile and shop associations"
+    },
+    "/shops/{shopId}": {
+      "schema": { "$ref": "#/entities/Shop" },
+      "description": "Private restaurant configuration and working draft menu"
+    },
+    "/published_menus/{shopId}": {
+      "schema": { "$ref": "#/entities/PublishedMenu" },
+      "description": "Public customer-facing menu snapshot viewed by guests without authentication"
+    }
+  }
+}

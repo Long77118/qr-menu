@@ -1,0 +1,81 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Users collection: Private to owner
+    match /users/{userId} {
+      allow get: if isSignedIn() && request.auth.uid == userId;
+      allow list: if false;
+      allow create: if isSignedIn() 
+        && request.auth.uid == userId 
+        && incoming().userId == request.auth.uid;
+      allow update: if isSignedIn() 
+        && request.auth.uid == userId 
+        && existing().userId == request.auth.uid
+        && incoming().userId == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // Shops collection: Private restaurant configuration & draft
+    match /shops/{shopId} {
+      allow get: if isSignedIn() && isValidId(shopId) && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isSignedIn() 
+        && isValidId(shopId) 
+        && incoming().ownerId == request.auth.uid 
+        && incoming().id == shopId;
+      allow update: if isSignedIn() 
+        && isValidId(shopId) 
+        && existing().ownerId == request.auth.uid 
+        && incoming().ownerId == existing().ownerId
+        && incoming().id == existing().id;
+      allow delete: if isSignedIn() 
+        && isValidId(shopId) 
+        && existing().ownerId == request.auth.uid;
+    }
+
+    // Published Menus collection: Public get for customers scanning QR code; write only by shop owner
+    match /published_menus/{shopId} {
+      // Customers scanning QR read only the specific requested shop
+      allow get: if isValidId(shopId);
+      // Deny blanket listing of all published menus to protect database
+      allow list: if false;
+      
+      // Only shop owner can publish/update their menu
+      allow create: if isSignedIn() 
+        && isValidId(shopId) 
+        && incoming().ownerId == request.auth.uid 
+        && incoming().shopId == shopId;
+      allow update: if isSignedIn() 
+        && isValidId(shopId) 
+        && existing().ownerId == request.auth.uid 
+        && incoming().ownerId == existing().ownerId 
+        && incoming().shopId == existing().shopId;
+      allow delete: if isSignedIn() 
+        && isValidId(shopId) 
+        && existing().ownerId == request.auth.uid;
+    }
+  }
+}
