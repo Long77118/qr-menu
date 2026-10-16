@@ -12,6 +12,15 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.get('qrAdmin', false) == true;
+    }
+
+    function isActive(shopId) {
+      return !exists(/databases/$(database)/documents/shop_controls/$(shopId))
+        || get(/databases/$(database)/documents/shop_controls/$(shopId)).data.status == 'active';
+    }
+
     function isValidId(id) {
       return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
@@ -24,10 +33,25 @@ service cloud.firestore {
       return resource.data;
     }
 
+    function shopExists(shopId) {
+      return exists(/databases/$(database)/documents/shops/$(shopId));
+    }
+
+    function getShopData(shopId) {
+      return get(/databases/$(database)/documents/shops/$(shopId)).data;
+    }
+
+    function isShopOwner(shopId) {
+      return isSignedIn() 
+        && isValidId(shopId) 
+        && shopExists(shopId) 
+        && getShopData(shopId).ownerId == request.auth.uid;
+    }
+
     // Users collection: Private to owner
     match /users/{userId} {
-      allow get: if isSignedIn() && request.auth.uid == userId;
-      allow list: if false;
+      allow get: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+      allow list: if isAdmin();
       allow create: if isSignedIn() 
         && request.auth.uid == userId 
         && incoming().userId == request.auth.uid;
@@ -40,8 +64,8 @@ service cloud.firestore {
 
     // Shops collection: Private restaurant configuration & draft
     match /shops/{shopId} {
-      allow get: if isSignedIn() && isValidId(shopId) && existing().ownerId == request.auth.uid;
-      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow get: if isAdmin() || (isSignedIn() && isValidId(shopId) && existing().ownerId == request.auth.uid);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.ownerId == request.auth.uid);
       allow create: if isSignedIn() 
         && isValidId(shopId) 
         && incoming().ownerId == request.auth.uid 
@@ -49,33 +73,107 @@ service cloud.firestore {
       allow update: if isSignedIn() 
         && isValidId(shopId) 
         && existing().ownerId == request.auth.uid 
-        && incoming().ownerId == existing().ownerId
+        && incoming().ownerId == existing().ownerId 
         && incoming().id == existing().id;
       allow delete: if isSignedIn() 
         && isValidId(shopId) 
-        && existing().ownerId == request.auth.uid;
+        && existing().ownerId == request.auth.uid
+        && !existsAfter(/databases/$(database)/documents/menu_directory/$(shopId));
     }
 
-    // Published Menus collection: Public get for customers scanning QR code; write only by shop owner
+    // Published Menus collection: Public get for customers scanning QR code; write only by verified shop owner
     match /published_menus/{shopId} {
       // Customers scanning QR read only the specific requested shop
-      allow get: if isValidId(shopId);
+      allow get: if isValidId(shopId) && (isAdmin() || isActive(shopId));
       // Deny blanket listing of all published menus to protect database
       allow list: if false;
       
-      // Only shop owner can publish/update their menu
-      allow create: if isSignedIn() 
-        && isValidId(shopId) 
+      // Only verified shop owner can publish menu for their shop
+      allow create: if isShopOwner(shopId) && isActive(shopId)
         && incoming().ownerId == request.auth.uid 
-        && incoming().shopId == shopId;
-      allow update: if isSignedIn() 
-        && isValidId(shopId) 
+        && incoming().shopId == shopId
+        && ('shop' in incoming())
+        && incoming().shop.id == shopId;
+
+      // Only verified shop owner can update, keeping ownerId, shopId, and shop.id immutable
+      allow update: if isShopOwner(shopId) && isActive(shopId)
         && existing().ownerId == request.auth.uid 
         && incoming().ownerId == existing().ownerId 
-        && incoming().shopId == existing().shopId;
-      allow delete: if isSignedIn() 
-        && isValidId(shopId) 
-        && existing().ownerId == request.auth.uid;
+        && incoming().shopId == existing().shopId
+        && ('shop' in incoming())
+        && incoming().shop.id == shopId;
+
+      // Only verified shop owner can delete published menu
+      allow delete: if isShopOwner(shopId)
+        && !existsAfter(/databases/$(database)/documents/menu_directory/$(shopId));
+    }
+
+    // Public discovery contains only an allowlisted summary of the published version.
+    match /menu_directory/{shopId} {
+      function matchesPublished() {
+        let published = getAfter(/databases/$(database)/documents/published_menus/$(shopId)).data;
+        let cover = published.shop.get('discoveryImageUrl', '') != '' ? published.shop.discoveryImageUrl
+          : published.shop.get('coverUrl', '') != '' ? published.shop.coverUrl
+          : published.shop.get('headerBackground', {}).get('imageUrl', '') != '' ? published.shop.headerBackground.imageUrl
+          : published.shop.get('logoUrl', '');
+        return incoming().keys().hasAll(['shopId', 'name', 'tagline', 'address', 'publishedAt', 'active'])
+          && incoming().keys().hasOnly(['shopId', 'name', 'tagline', 'address', 'countryCode', 'imageUrl', 'publishedAt', 'active'])
+          && incoming().shopId == shopId
+          && incoming().name == published.shop.name
+          && incoming().tagline == published.shop.get('tagline', '')
+          && incoming().address == published.shop.get('address', '')
+          && incoming().get('countryCode', '') == published.shop.get('countryCode', '')
+          && incoming().get('countryCode', '') in ['', 'AD', 'AE', 'AF', 'AG', 'AI', 'AL', 'AM', 'AO', 'AQ', 'AR', 'AS', 'AT', 'AU', 'AW', 'AX', 'AZ', 'BA', 'BB', 'BD', 'BE', 'BF', 'BG', 'BH', 'BI', 'BJ', 'BL', 'BM', 'BN', 'BO', 'BQ', 'BR', 'BS', 'BT', 'BV', 'BW', 'BY', 'BZ', 'CA', 'CC', 'CD', 'CF', 'CG', 'CH', 'CI', 'CK', 'CL', 'CM', 'CN', 'CO', 'CR', 'CU', 'CV', 'CW', 'CX', 'CY', 'CZ', 'DE', 'DJ', 'DK', 'DM', 'DO', 'DZ', 'EC', 'EE', 'EG', 'EH', 'ER', 'ES', 'ET', 'FI', 'FJ', 'FK', 'FM', 'FO', 'FR', 'GA', 'GB', 'GD', 'GE', 'GF', 'GG', 'GH', 'GI', 'GL', 'GM', 'GN', 'GP', 'GQ', 'GR', 'GS', 'GT', 'GU', 'GW', 'GY', 'HK', 'HM', 'HN', 'HR', 'HT', 'HU', 'ID', 'IE', 'IL', 'IM', 'IN', 'IO', 'IQ', 'IR', 'IS', 'IT', 'JE', 'JM', 'JO', 'JP', 'KE', 'KG', 'KH', 'KI', 'KM', 'KN', 'KP', 'KR', 'KW', 'KY', 'KZ', 'LA', 'LB', 'LC', 'LI', 'LK', 'LR', 'LS', 'LT', 'LU', 'LV', 'LY', 'MA', 'MC', 'MD', 'ME', 'MF', 'MG', 'MH', 'MK', 'ML', 'MM', 'MN', 'MO', 'MP', 'MQ', 'MR', 'MS', 'MT', 'MU', 'MV', 'MW', 'MX', 'MY', 'MZ', 'NA', 'NC', 'NE', 'NF', 'NG', 'NI', 'NL', 'NO', 'NP', 'NR', 'NU', 'NZ', 'OM', 'PA', 'PE', 'PF', 'PG', 'PH', 'PK', 'PL', 'PM', 'PN', 'PR', 'PS', 'PT', 'PW', 'PY', 'QA', 'RE', 'RO', 'RS', 'RU', 'RW', 'SA', 'SB', 'SC', 'SD', 'SE', 'SG', 'SH', 'SI', 'SJ', 'SK', 'SL', 'SM', 'SN', 'SO', 'SR', 'SS', 'ST', 'SV', 'SX', 'SY', 'SZ', 'TC', 'TD', 'TF', 'TG', 'TH', 'TJ', 'TK', 'TL', 'TM', 'TN', 'TO', 'TR', 'TT', 'TV', 'TW', 'TZ', 'UA', 'UG', 'UM', 'US', 'UY', 'UZ', 'VA', 'VC', 'VE', 'VG', 'VI', 'VN', 'VU', 'WF', 'WS', 'YE', 'YT', 'ZA', 'ZM', 'ZW']
+          && (!('imageUrl' in incoming()) || (incoming().imageUrl is string && incoming().imageUrl == cover))
+          && incoming().publishedAt == published.publishedAt
+          && incoming().name is string && incoming().tagline is string
+          && incoming().address is string && incoming().publishedAt is string
+          && incoming().active == true;
+      }
+      allow get: if isAdmin() || (isValidId(shopId) && resource.data.active == true);
+      allow list: if resource.data.active == true && request.query.limit != null && request.query.limit <= 25;
+      allow create: if isShopOwner(shopId) && isActive(shopId) && matchesPublished();
+      allow update: if (isShopOwner(shopId) && isActive(shopId) && matchesPublished())
+        || (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['active'])
+          && incoming().active == (getAfter(/databases/$(database)/documents/shop_controls/$(shopId)).data.status == 'active'));
+      allow delete: if isShopOwner(shopId);
+    }
+
+    // Public availability only. Reasons and actor identity are private in admin_logs.
+    match /shop_controls/{shopId} {
+      allow get: if isValidId(shopId);
+      allow list: if isAdmin();
+      allow create, update: if isAdmin() && isValidId(shopId) && shopExists(shopId)
+        && (!exists(/databases/$(database)/documents/menu_directory/$(shopId))
+          || getAfter(/databases/$(database)/documents/menu_directory/$(shopId)).data.active == (incoming().status == 'active'))
+        && incoming().keys().hasOnly(['shopId', 'status', 'updatedAt', 'lastAuditId'])
+        && incoming().shopId == shopId
+        && incoming().status in ['active', 'suspended']
+        && incoming().updatedAt == request.time
+        && incoming().lastAuditId is string
+        && getAfter(/databases/$(database)/documents/admin_logs/$(incoming().lastAuditId)).data.actorId == request.auth.uid
+        && getAfter(/databases/$(database)/documents/admin_logs/$(incoming().lastAuditId)).data.shopId == shopId
+        && getAfter(/databases/$(database)/documents/admin_logs/$(incoming().lastAuditId)).data.status == incoming().status
+        && getAfter(/databases/$(database)/documents/admin_logs/$(incoming().lastAuditId)).data.createdAt == request.time;
+      allow delete: if false;
+    }
+
+    match /admin_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+        && incoming().keys().hasOnly(['actorId', 'shopId', 'action', 'status', 'previousStatus', 'reason', 'createdAt'])
+        && incoming().actorId == request.auth.uid
+        && isValidId(incoming().shopId) && shopExists(incoming().shopId)
+        && incoming().action == 'set_shop_status'
+        && incoming().status in ['active', 'suspended']
+        && incoming().previousStatus == (exists(/databases/$(database)/documents/shop_controls/$(incoming().shopId))
+          ? get(/databases/$(database)/documents/shop_controls/$(incoming().shopId)).data.status : 'active')
+        && incoming().previousStatus != incoming().status
+        && incoming().reason is string && incoming().reason.size() > 0 && incoming().reason.size() <= 500
+        && incoming().createdAt == request.time
+        && getAfter(/databases/$(database)/documents/shop_controls/$(incoming().shopId)).data.lastAuditId == logId
+        && getAfter(/databases/$(database)/documents/shop_controls/$(incoming().shopId)).data.status == incoming().status;
+      allow update, delete: if false;
     }
   }
 }

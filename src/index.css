@@ -1,4 +1,10 @@
 @import "tailwindcss";
+@import "./fonts.css";
+
+@theme {
+  --font-sans: 'Nunito Sans', system-ui, sans-serif;
+  --font-serif: 'Fraunces', Georgia, serif;
+}
 
 @layer utilities {
   /* Hide scrollbar for clean horizontal tab sliders */
@@ -12,15 +18,23 @@
 }
 
 :root {
-  --color-canvas: #FFF9F3;
-  --color-surface: #FFFFFF;
+  --font-body: 'Nunito Sans', system-ui, sans-serif;
+  --font-display: 'Fraunces', Georgia, serif;
+  --color-canvas: #F1E8DC;
+  --color-lavender: #ECE4F7;
+  --color-emerald: #147D64;
+  --color-emerald-soft: #E0F1E9;
+  --color-emerald-border: #B9DCCC;
+  --color-brand-primary: #7447E8;
+  --color-brand-primary-hover: #6035CF;
+  --color-surface: #FFFCF7;
   --color-text-main: #241E35;
   --color-text-muted: #6E6779;
   --color-brand-orange: #FF5A36;
   --color-brand-purple: #7447E8;
   --color-brand-lemon: #E5F76A;
   --color-brand-pink: #FF83B5;
-  --color-border: #EFE5D9;
+  --color-border: #DED2C4;
 }
 
 html {
@@ -28,8 +42,8 @@ html {
 }
 
 body {
-  font-family: 'Be Vietnam Pro', 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background-color: #FFF9F3;
+  font-family: var(--font-body);
+  background-color: var(--color-canvas);
   color: #241E35;
   margin: 0;
   padding: 0;
@@ -56,3 +70,11 @@ body {
   }
 }
 
+
+/* Rounded everyday text paired with soft, expressive editorial headings. */
+h1, h2, h3, .font-serif {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-variation-settings: "SOFT" 100, "WONK" 1;
+}
+button, input, select, textarea { font-family: inherit; }

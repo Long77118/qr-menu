@@ -1,4 +1,8 @@
-import React, { useState } from 'react';
+import './ownerDashboard.css';
+import './ownerWorkspace.css';
+import { CategoryTabs } from './CategoryTabs';
+import React, { useState, useRef, useEffect } from 'react';
+import { OperationResult } from '../types/operations';
 import {
   Palette,
   UtensilsCrossed,
@@ -41,9 +45,10 @@ interface OwnerDashboardProps {
   user: UserProfile;
   shopData: ShopData;
   isPublished: boolean;
-  onUpdateDraft: (newData: ShopData) => void;
-  onPublish: () => void;
-  onResetDemo: () => void;
+  isSyncing?: boolean;
+  hasPendingDraft?: boolean;
+  onUpdateDraft: (newData: ShopData) => Promise<OperationResult>;
+  onPublish: (snapshot: ShopData) => Promise<OperationResult>;
   onLogout: () => void;
   onOpenGuestUrl: (shopId: string) => void;
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
@@ -53,21 +58,59 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   user,
   shopData,
   isPublished,
-  onUpdateDraft,
+  isSyncing = false,
+  hasPendingDraft = false,
+  onUpdateDraft: updateDraft,
   onPublish,
-  onResetDemo,
   onLogout,
   onOpenGuestUrl,
   showToast,
 }) => {
-  // Navigation Tabs: 'overview' (Tổng quan), 'menu' (Quản lý thực đơn), 'editor' (Chỉnh menu trực tiếp), 'info' (Thông tin quán), 'qr' (Mã QR)
+  // Navigation Tabs: 'overview' (Tổng quan), 'menu' (Quản lý thực đơn), 'editor' (Thiết kế menu), 'info' (Thông tin quán), 'qr' (Mã QR)
   const [activeTab, setActiveTab] = useState<'overview' | 'editor' | 'menu' | 'info' | 'qr'>('overview');
 
   // Sub-mode in 'editor' tab: 'edit' (Chế độ chỉnh sửa trực tiếp) vs 'preview' (Xem như khách)
+  const [previewDevice, setPreviewDevice] = useState<'desktop' | 'mobile'>('mobile');
+  const [infoDirty, setInfoDirty] = useState(false);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'cloud' | 'local' | 'error'>('idle');
+  const [saveError, setSaveError] = useState('');
   const [editorMode, setEditorMode] = useState<'edit' | 'preview'>('edit');
 
   // Track unsaved changes in draft
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(hasPendingDraft);
+  const [hasUnpublishedChanges, setHasUnpublishedChanges] = useState(hasPendingDraft);
+  useEffect(() => {
+    if (!infoDirty && !hasUnsavedChanges && !hasPendingDraft) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue=''; };
+    window.addEventListener('beforeunload',warn); return () => window.removeEventListener('beforeunload',warn);
+  }, [infoDirty,hasUnsavedChanges,hasPendingDraft]);
+  const previousPending = useRef(hasPendingDraft);
+  useEffect(() => {
+    if (hasPendingDraft) { setHasUnsavedChanges(true); setHasUnpublishedChanges(true); }
+    else if (previousPending.current) { setHasUnsavedChanges(false); setSaveState('cloud'); setSaveError(''); }
+    previousPending.current = hasPendingDraft;
+  }, [hasPendingDraft]);
+  const draftRevision = useRef(0);
+  const busyRef = useRef(false);
+  const [isBusy, setIsBusy] = useState(false);
+  const onUpdateDraft = (data: ShopData) => {
+    draftRevision.current++;
+    const revision = draftRevision.current;
+    setHasUnsavedChanges(true);
+    setHasUnpublishedChanges(true);
+    setSaveState('saving');
+    setSaveError('');
+    return updateDraft(data).catch((error): OperationResult => ({success:false,error:error instanceof Error ? error.message : 'Không lưu được bản nháp.'})).then((result) => {
+      if (revision === draftRevision.current) {
+        if (result.success) {
+          setHasUnsavedChanges(!!result.pending);
+          setSaveState(result.storage === 'cloud' ? 'cloud' : 'local');
+          showToast(result.storage === 'cloud' ? 'success' : 'info', result.storage === 'cloud' ? 'Đã lưu bản nháp. Xuất bản để khách thấy thay đổi.' : 'Đã lưu trên thiết bị này; đang chờ đồng bộ.');
+        } else { setSaveState('error'); setSaveError(result.error || 'Không lưu được bản nháp.'); }
+      }
+      return result;
+    });
+  };
   const [pendingTabSwitch, setPendingTabSwitch] = useState<string | null>(null);
 
   // Search & Filters in Menu Management tab
@@ -90,11 +133,20 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   // Item Deletion Confirm Modal
   const [deletingItem, setDeletingItem] = useState<MenuItem | null>(null);
 
-  // Reset Demo Confirm Modal
-  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
   const { shop, categories, items } = shopData;
   const themeColor = shop.themeColor || '#FF5A36';
+  const headerRef = useRef<HTMLElement>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header) return;
+    const measure = () => setHeaderHeight(header.getBoundingClientRect().height);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
 
   // --- SAFE NAVIGATION GUARD FOR UNSAVED CHANGES ---
   const handleSwitchTab = (targetTab: 'overview' | 'editor' | 'menu' | 'info' | 'qr') => {
@@ -106,6 +158,10 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
     }
   };
 
+  const openPublishedMenu = (shopId:string) => {
+    if (infoDirty) { setActiveTab('info'); showToast('info','Lưu thông tin quán trước khi mở trang khác.'); return; }
+    onOpenGuestUrl(shopId);
+  };
   // --- DIRECT IN-PLACE EDIT HANDLERS (Invoked directly from GuestMenuView) ---
   const handleDirectUpdateItem = (updatedItem: MenuItem) => {
     const updatedItems = items.map((i) => (i.id === updatedItem.id ? updatedItem : i));
@@ -115,7 +171,6 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
     };
     onUpdateDraft(nextData);
     setHasUnsavedChanges(true);
-    showToast('success', `Đã cập nhật món "${updatedItem.name}" trên bản nháp`);
   };
 
   const handleDirectUpdateShop = (
@@ -136,7 +191,6 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
     };
     onUpdateDraft(nextData);
     setHasUnsavedChanges(true);
-    showToast('success', 'Đã cập nhật thông tin quán trên bản nháp');
   };
 
   const handleDirectUpdateHeaderBg = (headerBackground: HeaderBackgroundConfig) => {
@@ -149,7 +203,6 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
     };
     onUpdateDraft(nextData);
     setHasUnsavedChanges(true);
-    showToast('success', 'Đã lưu cấu hình nền header vào bản nháp!');
   };
 
   // --- FULL ITEM MODAL ACTIONS ---
@@ -177,7 +230,6 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         }
         return item;
       });
-      showToast('success', `Đã cập nhật món "${itemPayload.name}"`);
     } else {
       const newId = 'item-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
       const catItems = items.filter((i) => i.categoryId === itemPayload.categoryId);
@@ -189,7 +241,6 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         order: newOrder,
       };
       updatedItems.push(newItem);
-      showToast('success', `Đã thêm món "${itemPayload.name}" vào menu`);
     }
 
     onUpdateDraft({
@@ -223,7 +274,6 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
       items: [...items, duplicated],
     });
     setHasUnsavedChanges(true);
-    showToast('success', `Đã nhân bản "${item.name}" (trạng thái: Đang ẩn)`);
   };
 
   // Delete item confirm
@@ -237,7 +287,6 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
     });
     setHasUnsavedChanges(true);
     setDeletingItem(null);
-    showToast('info', `Đã xóa món "${itemName}" khỏi thực đơn`);
   };
 
   // Quick Status Change on List
@@ -257,7 +306,6 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
       out_of_stock: 'Tạm hết',
       hidden: 'Đang ẩn',
     };
-    showToast('info', `"${target?.name || ''}" chuyển sang: ${statusLabels[newStatus]}`);
   };
 
   // Reorder Item within its Category
@@ -308,12 +356,11 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   };
 
   // --- CATEGORY ACTIONS (Via CategoryManagerModal) ---
-  const handleSaveCategory = (name: string, id?: string) => {
+  const handleSaveCategory = (name: string, id?: string, imageUrl?: string | null) => {
     let updatedCategories = [...categories];
 
     if (id) {
-      updatedCategories = updatedCategories.map((c) => (c.id === id ? { ...c, name } : c));
-      showToast('success', `Đã đổi tên nhóm thành "${name}"`);
+      updatedCategories = updatedCategories.map((c) => (c.id === id ? { ...c, name, ...(imageUrl !== undefined ? {imageUrl:imageUrl ?? undefined} : {}) } : c));
     } else {
       const newCat: MenuCategory = {
         id: 'cat-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
@@ -321,14 +368,14 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         order: categories.length + 1,
       };
       updatedCategories.push(newCat);
-      showToast('success', `Đã thêm nhóm món "${name}"`);
     }
 
-    onUpdateDraft({
+    const save = onUpdateDraft({
       ...shopData,
       categories: updatedCategories,
     });
     setHasUnsavedChanges(true);
+    return save;
   };
 
   const handleMoveCategoryOrder = (catId: string, direction: 'up' | 'down') => {
@@ -374,24 +421,44 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
       items: updatedItems,
     });
     setHasUnsavedChanges(true);
-    showToast('info', 'Đã xóa nhóm món và bảo toàn dữ liệu');
   };
 
   // --- MANUAL DRAFT SAVE & PUBLISH ---
-  const handleManualSaveDraft = () => {
-    onUpdateDraft(shopData);
-    setHasUnsavedChanges(false);
-    showToast(
-      'success',
-      user.isFirebaseUser
-        ? 'Đã lưu bản nháp lên đám mây Firestore!'
-        : 'Đã lưu bản nháp thành công!'
-    );
+  const handleManualSaveDraft = async (): Promise<boolean> => {
+    if (infoDirty) { (document.getElementById('owner-shop-info-form') as HTMLFormElement | null)?.requestSubmit(); setActiveTab('info'); return false; }
+    if (busyRef.current) return false;
+    busyRef.current = true;
+    setIsBusy(true);
+    try {
+      const saved = onUpdateDraft(shopData);
+      const revision = draftRevision.current;
+      const result = await saved;
+      if (!result.success) return false;
+      if (draftRevision.current === revision) setHasUnsavedChanges(false);
+      return draftRevision.current === revision;
+    } catch (error) {
+      showToast('error', error instanceof Error ? error.message : 'Không thể lưu bản nháp.');
+      return false;
+    } finally { busyRef.current = false; setIsBusy(false); }
   };
 
-  const handlePublishMenu = () => {
-    onPublish();
-    setHasUnsavedChanges(false);
+  const handlePublishMenu = async () => {
+    if (saveState === 'saving' || saveState === 'local' || hasPendingDraft) { showToast('info','Đợi bản nháp lưu và đồng bộ xong trước khi xuất bản.'); return; }
+    if (infoDirty) { setActiveTab('info'); showToast('info','Lưu thông tin quán đang nhập trước khi xuất bản.'); return; }
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setIsBusy(true);
+    const revision = draftRevision.current;
+    try {
+      const result = await onPublish(shopData);
+      if (result.success && draftRevision.current === revision) {
+        setHasUnsavedChanges(false);
+        setHasUnpublishedChanges(false);
+        setSaveState('cloud'); setSaveError('');
+      }
+    } catch (error) {
+      showToast('error', error instanceof Error ? error.message : 'Không thể xuất bản.');
+    } finally { busyRef.current = false; setIsBusy(false); }
   };
 
   // Active Category for Reorder Mode
@@ -432,56 +499,58 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   });
 
   return (
-    <div className="min-h-screen bg-[#FFF9F3] text-[#241E35] flex flex-col md:flex-row">
+    <div style={{'--owner-header-height':`${headerHeight}px`} as React.CSSProperties} onClickCapture={event => {
+      if (infoDirty && (event.target as HTMLElement).closest?.('a[href^="#"]')) { event.preventDefault(); event.stopPropagation(); setActiveTab('info'); showToast('info','Lưu thông tin quán trước khi mở trang khác.'); }
+    }} className="owner-dashboard min-h-screen bg-[#F4ECDF] text-[#163E37] flex flex-col md:flex-row">
       {/* ================= DESKTOP LEFT SIDEBAR ================= */}
-      <aside className="hidden md:flex flex-col w-64 shrink-0 bg-white border-r border-[#EFE5D9] min-h-screen sticky top-0 h-screen overflow-y-auto">
+      <aside className="hidden md:flex flex-col w-64 shrink-0 bg-[#FFFCF7] border-r border-[#E2D8CF] min-h-screen sticky top-0 h-screen overflow-y-auto">
         {/* Brand & Workspace Title */}
-        <div className="p-5 border-b border-[#EFE5D9]">
+        <div className="p-5 border-b border-[#E2D8CF]">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-2xl bg-[#FF5A36] text-white flex items-center justify-center font-black text-sm shadow-xs">
+            <div className="w-8 h-8 rounded-2xl bg-[#7054AE] text-white flex items-center justify-center font-semibold text-sm shadow-xs">
               QR
             </div>
             <div>
-              <div className="text-base font-black text-[#241E35] font-serif leading-tight">
+              <div className="text-base font-semibold text-[#163E37] font-serif leading-tight">
                 QR Menu
               </div>
-              <div className="text-[11px] text-[#6E6779]">Quản lý thực đơn</div>
+              <div className="text-[11px] text-[#746E79]">Quản lý thực đơn</div>
             </div>
           </div>
 
           {/* Shop Card */}
-          <div className="mt-4 p-3 rounded-2xl bg-[#FFF9F3] border border-[#EFE5D9]">
+          <div className="mt-4 p-3 rounded-2xl bg-[#F4ECDF] border border-[#E2D8CF]">
             <div className="flex items-center gap-2.5">
               <div
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-white font-black text-xs shrink-0 shadow-xs"
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-white font-semibold text-xs shrink-0 shadow-xs"
                 style={{ backgroundColor: themeColor }}
               >
                 {shop.name.charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-xs font-black text-[#241E35] truncate">{shop.name}</div>
-                <div className="text-[10px] text-[#6E6779] truncate font-mono">
+                <div className="text-xs font-semibold text-[#163E37] truncate">{shop.name}</div>
+                <div className="text-[10px] text-[#746E79] truncate font-mono">
                   {user.email || `Mã: ${shop.id}`}
                 </div>
                 {user.isFirebaseUser && (
-                  <div className="inline-flex items-center gap-1 text-[9px] font-black text-emerald-700 bg-emerald-100/70 px-1.5 py-0.5 rounded-md mt-0.5">
+                  <div className="inline-flex items-center gap-1 text-[9px] font-semibold text-emerald-700 bg-emerald-100/70 px-1.5 py-0.5 rounded-md mt-0.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>Đồng bộ Cloud</span>
+                    <span>Tài khoản trực tuyến</span>
                   </div>
                 )}
               </div>
             </div>
 
             {/* Metrics count */}
-            <div className="mt-2.5 pt-2 border-t border-[#EFE5D9] flex items-center justify-between text-[11px] text-[#6E6779]">
+            <div className="mt-2.5 pt-2 border-t border-[#E2D8CF] flex items-center justify-between text-[11px] text-[#746E79]">
               <span>{items.length} món</span>
               <span>·</span>
               <span>{categories.length} nhóm</span>
               <span>·</span>
               <span
-                className={`font-black ${
+                className={`font-semibold ${
                   hasUnsavedChanges
-                    ? 'text-[#FF5A36]'
+                    ? 'text-[#7054AE]'
                     : isPublished
                     ? 'text-emerald-700'
                     : 'text-amber-800'
@@ -489,6 +558,8 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
               >
                 {hasUnsavedChanges
                   ? 'Chưa lưu nháp'
+                  : hasUnpublishedChanges
+                  ? 'Nháp chưa xuất bản'
                   : isPublished
                   ? 'Đã xuất bản'
                   : 'Bản nháp'}
@@ -501,84 +572,85 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         <nav className="p-3 space-y-1.5 flex-1">
           <button
             onClick={() => handleSwitchTab('overview')}
-            className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-2xl text-xs font-black flex items-center gap-3 transition-all cursor-pointer ${
+            aria-current={activeTab === 'overview' ? 'page' : undefined}
+            className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-2xl text-xs font-semibold flex items-center gap-3 transition-all cursor-pointer ${
               activeTab === 'overview'
-                ? 'bg-[#E5F76A] text-[#241E35] shadow-xs'
-                : 'text-[#6E6779] hover:bg-[#FFF9F3] hover:text-[#241E35]'
+                ? 'bg-[#E0F1E9] text-[#163E37] shadow-xs'
+                : 'text-[#746E79] hover:bg-[#F4ECDF] hover:text-[#163E37]'
             }`}
           >
-            <LayoutDashboard className="w-4 h-4 text-[#FF5A36]" />
+            <LayoutDashboard className="w-4 h-4 text-[#7054AE]" />
             <span className="flex-1 text-left">Tổng quan</span>
           </button>
 
           <button
             onClick={() => handleSwitchTab('menu')}
-            className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-2xl text-xs font-black flex items-center gap-3 transition-all cursor-pointer ${
+            aria-current={activeTab === 'menu' ? 'page' : undefined}
+            className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-2xl text-xs font-semibold flex items-center gap-3 transition-all cursor-pointer ${
               activeTab === 'menu'
-                ? 'bg-[#E5F76A] text-[#241E35] shadow-xs'
-                : 'text-[#6E6779] hover:bg-[#FFF9F3] hover:text-[#241E35]'
+                ? 'bg-[#E0F1E9] text-[#163E37] shadow-xs'
+                : 'text-[#746E79] hover:bg-[#F4ECDF] hover:text-[#163E37]'
             }`}
           >
-            <UtensilsCrossed className="w-4 h-4 text-[#FF5A36]" />
+            <UtensilsCrossed className="w-4 h-4 text-[#7054AE]" />
             <span className="flex-1 text-left">Quản lý thực đơn</span>
-            <span className="text-[11px] bg-white px-2 py-0.5 rounded-full border border-[#EFE5D9] text-[#6E6779] font-mono">
+            <span className="text-[11px] bg-[#FFFCF7] px-2 py-0.5 rounded-full border border-[#E2D8CF] text-[#746E79] font-mono">
               {items.length}
             </span>
           </button>
 
           <button
             onClick={() => handleSwitchTab('editor')}
-            className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-2xl text-xs font-black flex items-center gap-3 transition-all cursor-pointer ${
+            aria-current={activeTab === 'editor' ? 'page' : undefined}
+            className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-2xl text-xs font-semibold flex items-center gap-3 transition-all cursor-pointer ${
               activeTab === 'editor'
-                ? 'bg-[#E5F76A] text-[#241E35] shadow-xs'
-                : 'text-[#6E6779] hover:bg-[#FFF9F3] hover:text-[#241E35]'
+                ? 'bg-[#E0F1E9] text-[#163E37] shadow-xs'
+                : 'text-[#746E79] hover:bg-[#F4ECDF] hover:text-[#163E37]'
             }`}
           >
-            <Palette className="w-4 h-4 text-[#FF5A36]" />
-            <span className="flex-1 text-left">Chỉnh menu trực tiếp</span>
-            <span className="text-[10px] bg-[#FF5A36] text-white px-2 py-0.5 rounded-full font-black">
+            <Palette className="w-4 h-4 text-[#7054AE]" />
+            <span className="flex-1 text-left">Thiết kế menu</span>
+            <span className="text-[10px] bg-[#7054AE] text-white px-2 py-0.5 rounded-full font-semibold">
               Mới
             </span>
           </button>
 
           <button
             onClick={() => handleSwitchTab('info')}
-            className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-2xl text-xs font-black flex items-center gap-3 transition-all cursor-pointer ${
+            aria-current={activeTab === 'info' ? 'page' : undefined}
+            className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-2xl text-xs font-semibold flex items-center gap-3 transition-all cursor-pointer ${
               activeTab === 'info'
-                ? 'bg-[#E5F76A] text-[#241E35] shadow-xs'
-                : 'text-[#6E6779] hover:bg-[#FFF9F3] hover:text-[#241E35]'
+                ? 'bg-[#E0F1E9] text-[#163E37] shadow-xs'
+                : 'text-[#746E79] hover:bg-[#F4ECDF] hover:text-[#163E37]'
             }`}
           >
-            <Store className="w-4 h-4 text-[#FF5A36]" />
+            <Store className="w-4 h-4 text-[#7054AE]" />
             <span className="flex-1 text-left">Thông tin quán</span>
           </button>
 
           <button
             onClick={() => handleSwitchTab('qr')}
-            className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-2xl text-xs font-black flex items-center gap-3 transition-all cursor-pointer ${
+            aria-current={activeTab === 'qr' ? 'page' : undefined}
+            className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-2xl text-xs font-semibold flex items-center gap-3 transition-all cursor-pointer ${
               activeTab === 'qr'
-                ? 'bg-[#E5F76A] text-[#241E35] shadow-xs'
-                : 'text-[#6E6779] hover:bg-[#FFF9F3] hover:text-[#241E35]'
+                ? 'bg-[#E0F1E9] text-[#163E37] shadow-xs'
+                : 'text-[#746E79] hover:bg-[#F4ECDF] hover:text-[#163E37]'
             }`}
           >
-            <QrCode className="w-4 h-4 text-[#FF5A36]" />
+            <QrCode className="w-4 h-4 text-[#7054AE]" />
             <span className="flex-1 text-left">Mã QR &amp; Chia sẻ</span>
           </button>
         </nav>
 
         {/* Sidebar Footer */}
-        <div className="p-4 border-t border-[#EFE5D9] space-y-2">
-          <button
-            onClick={() => setIsResetConfirmOpen(true)}
-            className="w-full px-3 py-2 rounded-xl text-[11px] text-[#6E6779] hover:text-[#241E35] hover:bg-[#FFF9F3] flex items-center gap-2 transition-colors font-medium cursor-pointer"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Khôi phục dữ liệu mẫu</span>
-          </button>
+        <div className="p-4 border-t border-[#E2D8CF] space-y-2">
+          <a href="#/discover" className="block px-3 py-2 rounded-xl text-xs font-bold text-[#7054AE]">Khám phá các quán</a>
+          <p className="px-3 text-[11px] text-[#746E79]">Xuất bản sẽ công khai menu và địa chỉ quán trong danh sách khám phá.</p>
+
 
           <button
-            onClick={onLogout}
-            className="w-full px-3 py-2 rounded-xl text-[11px] text-[#6E6779] hover:text-rose-700 hover:bg-rose-50 flex items-center gap-2 transition-colors font-medium cursor-pointer"
+            onClick={() => { if (infoDirty) { setActiveTab('info'); showToast('info','Lưu thông tin quán trước khi đăng xuất.'); return; } onLogout(); }}
+            className="w-full px-3 py-2 rounded-xl text-[11px] text-[#746E79] hover:text-rose-700 hover:bg-rose-50 flex items-center gap-2 transition-colors font-medium cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>Đăng xuất tài khoản</span>
@@ -589,22 +661,22 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
       {/* ================= RIGHT MAIN WORKSPACE ================= */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Header Bar */}
-        <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#EFE5D9]">
+        <header data-owner-header ref={headerRef} className="sticky top-0 z-30 bg-[#FFFCF7]/95 backdrop-blur-md border-b border-[#E2D8CF]">
           <div className="px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="md:hidden w-8 h-8 rounded-xl bg-[#FF5A36] text-white flex items-center justify-center font-black text-xs shrink-0 shadow-xs">
+              <div className="md:hidden w-8 h-8 rounded-xl bg-[#7054AE] text-white flex items-center justify-center font-semibold text-xs shrink-0 shadow-xs">
                 QR
               </div>
               <div className="min-w-0">
-                <div className="text-sm sm:text-base font-black text-[#241E35] truncate flex items-center gap-2">
+                <div className="text-sm sm:text-base font-semibold text-[#163E37] truncate flex items-center gap-2">
                   <span>{shop.name}</span>
                   {hasUnsavedChanges && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#FF5A36] bg-[#FFF0EB] px-2 py-0.5 rounded-full border border-[#FF5A36]/30">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#7054AE] bg-[#E6DCF1] px-2 py-0.5 rounded-full border border-[#7054AE]/30">
                       Chưa lưu nháp
                     </span>
                   )}
                 </div>
-                <div className="text-[11px] text-[#6E6779] hidden sm:block truncate">
+                <div className="text-[11px] text-[#746E79] hidden sm:block truncate">
                   Bản nháp được lưu độc lập · Khách chỉ xem bản đã xuất bản
                 </div>
               </div>
@@ -612,18 +684,21 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
 
             {/* Quick Action Buttons */}
             <div className="flex items-center gap-2 shrink-0">
+              <span className="owner-status" data-state={saveState} role="status" aria-live="polite">{isBusy || isSyncing || saveState === 'saving' ? 'Đang lưu…' : infoDirty ? 'Thông tin chưa lưu' : saveState === 'error' ? saveError : hasPendingDraft || saveState === 'local' ? 'Chờ đồng bộ' : hasUnpublishedChanges ? 'Nháp chưa xuất bản' : hasUnsavedChanges ? 'Chưa lưu nháp' : isPublished ? 'Menu đang công khai' : 'Chưa xuất bản'}</span>
               <button
                 onClick={handleManualSaveDraft}
-                className="min-h-[40px] px-3 sm:px-4 py-2 rounded-2xl border border-[#EFE5D9] bg-white text-[#241E35] text-xs font-bold hover:bg-[#FFF9F3] transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                title="Lưu bản nháp"
+                disabled={isBusy}
+                className="min-h-[40px] px-3 sm:px-4 py-2 rounded-2xl border border-[#E2D8CF] bg-[#FFFCF7] text-[#163E37] text-xs font-bold hover:bg-[#F4ECDF] transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                aria-label="Lưu bản nháp" title="Lưu bản nháp"
               >
-                <Save className="w-3.5 h-3.5 text-[#FF5A36]" />
+                <Save className="w-3.5 h-3.5 text-[#7054AE]" />
                 <span className="hidden sm:inline">Lưu nháp</span>
               </button>
 
               <button
                 onClick={handlePublishMenu}
-                className="min-h-[40px] px-3.5 sm:px-5 py-2 rounded-2xl bg-[#FF5A36] text-white text-xs font-black hover:bg-[#E6431F] transition-colors inline-flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-[0.98]"
+                disabled={isBusy || isSyncing || saveState === 'saving' || saveState === 'local' || hasPendingDraft}
+                className="min-h-[40px] px-3.5 sm:px-5 py-2 rounded-2xl bg-[#7054AE] text-white text-xs font-semibold hover:bg-[#624598] transition-colors inline-flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-[0.98]"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Xuất bản ngay</span>
@@ -632,25 +707,27 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
           </div>
 
           {/* Mobile Bottom Navigation Strip */}
-          <div className="md:hidden px-3 border-t border-[#EFE5D9] flex items-center justify-between overflow-x-auto scrollbar-none bg-[#FFF9F3]">
+          <nav aria-label="Quản lý quán" className="owner-mobile-nav md:hidden px-3 border-t border-[#E2D8CF] flex items-center justify-between overflow-x-auto scrollbar-none bg-[#F4ECDF]">
             <button
               onClick={() => handleSwitchTab('overview')}
+            aria-current={activeTab === 'overview' ? 'page' : undefined}
               className={`min-h-[42px] px-3 py-2 text-xs font-bold border-b-2 whitespace-nowrap transition-colors flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'overview'
-                  ? 'border-[#FF5A36] text-[#241E35]'
-                  : 'border-transparent text-[#6E6779]'
+                  ? 'border-[#7054AE] text-[#163E37]'
+                  : 'border-transparent text-[#746E79]'
               }`}
             >
-              <LayoutDashboard className="w-3.5 h-3.5 text-[#FF5A36]" />
+              <LayoutDashboard className="w-3.5 h-3.5 text-[#7054AE]" />
               <span>Tổng quan</span>
             </button>
 
             <button
               onClick={() => handleSwitchTab('menu')}
+            aria-current={activeTab === 'menu' ? 'page' : undefined}
               className={`min-h-[42px] px-3 py-2 text-xs font-bold border-b-2 whitespace-nowrap transition-colors flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'menu'
-                  ? 'border-[#FF5A36] text-[#241E35]'
-                  : 'border-transparent text-[#6E6779]'
+                  ? 'border-[#7054AE] text-[#163E37]'
+                  : 'border-transparent text-[#746E79]'
               }`}
             >
               <UtensilsCrossed className="w-3.5 h-3.5" />
@@ -659,44 +736,47 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
 
             <button
               onClick={() => handleSwitchTab('editor')}
+            aria-current={activeTab === 'editor' ? 'page' : undefined}
               className={`min-h-[42px] px-3 py-2 text-xs font-bold border-b-2 whitespace-nowrap transition-colors flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'editor'
-                  ? 'border-[#FF5A36] text-[#241E35]'
-                  : 'border-transparent text-[#6E6779]'
+                  ? 'border-[#7054AE] text-[#163E37]'
+                  : 'border-transparent text-[#746E79]'
               }`}
             >
-              <Palette className="w-3.5 h-3.5 text-[#FF5A36]" />
-              <span>Chỉnh trực tiếp</span>
+              <Palette className="w-3.5 h-3.5 text-[#7054AE]" />
+              <span>Thiết kế</span>
             </button>
 
             <button
               onClick={() => handleSwitchTab('info')}
+            aria-current={activeTab === 'info' ? 'page' : undefined}
               className={`min-h-[42px] px-3 py-2 text-xs font-bold border-b-2 whitespace-nowrap transition-colors flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'info'
-                  ? 'border-[#FF5A36] text-[#241E35]'
-                  : 'border-transparent text-[#6E6779]'
+                  ? 'border-[#7054AE] text-[#163E37]'
+                  : 'border-transparent text-[#746E79]'
               }`}
             >
               <Store className="w-3.5 h-3.5" />
-              <span>Thông tin quán</span>
+              <span>Quán</span>
             </button>
 
             <button
               onClick={() => handleSwitchTab('qr')}
+            aria-current={activeTab === 'qr' ? 'page' : undefined}
               className={`min-h-[42px] px-3 py-2 text-xs font-bold border-b-2 whitespace-nowrap transition-colors flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'qr'
-                  ? 'border-[#FF5A36] text-[#241E35]'
-                  : 'border-transparent text-[#6E6779]'
+                  ? 'border-[#7054AE] text-[#163E37]'
+                  : 'border-transparent text-[#746E79]'
               }`}
             >
               <QrCode className="w-3.5 h-3.5" />
               <span>Mã QR</span>
             </button>
-          </div>
+          </nav>
         </header>
 
         {/* Content Body */}
-        <main className="p-4 sm:p-6 max-w-7xl w-full mx-auto flex-1">
+        <main className="owner-content p-4 sm:p-6 max-w-7xl w-full mx-auto flex-1">
           {/* ================= TAB 0: TỔNG QUAN (SHOP OVERVIEW) ================= */}
           {activeTab === 'overview' && (
             <ShopOverview
@@ -704,10 +784,12 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
               shopData={shopData}
               isPublished={isPublished}
               hasUnsavedChanges={hasUnsavedChanges}
+              hasUnpublishedChanges={hasUnpublishedChanges}
+              isBusy={isBusy || isSyncing}
               onNavigateTab={handleSwitchTab}
               onPublish={handlePublishMenu}
               onSaveDraft={handleManualSaveDraft}
-              onOpenGuestUrl={onOpenGuestUrl}
+              onOpenGuestUrl={openPublishedMenu}
             />
           )}
 
@@ -715,61 +797,69 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
           {activeTab === 'editor' && (
             <div className="space-y-4">
               {/* Direct Edit Top Switcher */}
-              <div className="bg-white rounded-[28px] p-4 border border-[#EFE5D9] shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="owner-editor-switch bg-[#FFFCF7] rounded-[28px] p-4 border border-[#E2D8CF] shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <span className="text-xs font-black uppercase tracking-wider text-[#FF5A36]">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-[#7054AE]">
                     Chế độ xem:
                   </span>
-                  <div className="inline-flex rounded-2xl p-1 bg-[#FFF9F3] border border-[#EFE5D9]">
+                    <div role="group" aria-label="Chế độ thiết kế menu" className="inline-flex rounded-2xl p-1 bg-[#F4ECDF] border border-[#E2D8CF]">
                     <button
                       onClick={() => setEditorMode('edit')}
+                        aria-pressed={editorMode === 'edit'}
                       className={`min-h-[34px] px-3.5 py-1 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer ${
                         editorMode === 'edit'
-                          ? 'bg-[#FF5A36] text-white shadow-xs'
-                          : 'text-[#6E6779] hover:text-[#241E35]'
+                          ? 'bg-[#7054AE] text-white shadow-xs'
+                          : 'text-[#746E79] hover:text-[#163E37]'
                       }`}
                     >
                       <Palette className="w-3.5 h-3.5" />
-                      <span>Chỉnh sửa trực tiếp ✏️</span>
+                      <span>Chỉnh trực tiếp</span>
                     </button>
 
                     <button
                       onClick={() => setEditorMode('preview')}
+                        aria-pressed={editorMode === 'preview'}
                       className={`min-h-[34px] px-3.5 py-1 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer ${
                         editorMode === 'preview'
-                          ? 'bg-white text-[#241E35] shadow-xs'
-                          : 'text-[#6E6779] hover:text-[#241E35]'
+                          ? 'bg-[#FFFCF7] text-[#163E37] shadow-xs'
+                          : 'text-[#746E79] hover:text-[#163E37]'
                       }`}
                     >
                       <Eye className="w-3.5 h-3.5" />
-                      <span>Xem như khách 👁️</span>
+                      <span>Xem như khách</span>
                     </button>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2 text-xs">
                   {editorMode === 'edit' ? (
-                    <span className="text-[11px] font-bold text-[#FF5A36] bg-[#FFF0EB] px-3 py-1 rounded-full border border-[#FF5A36]/30">
+                    <span className="text-[11px] font-bold text-[#7054AE] bg-[#E6DCF1] px-3 py-1 rounded-full border border-[#7054AE]/30">
                       Bấm vào tên, ảnh hoặc giá trên menu để sửa ngay
                     </span>
                   ) : (
-                    <span className="text-[11px] font-bold text-[#6E6779]">
-                      Menu đang hiển thị chính xác như khách quét QR
+                    <span className="text-[11px] font-bold text-[#746E79]">
+                      Xem trước bản nháp; khách chỉ thấy bản đã xuất bản
                     </span>
                   )}
                   <button
-                    onClick={() => onOpenGuestUrl(shop.id)}
-                    className="text-[#6E6779] hover:text-[#241E35] text-xs font-bold underline cursor-pointer"
+                    onClick={() => openPublishedMenu(shop.id)}
+                    className="text-[#746E79] hover:text-[#163E37] text-xs font-bold underline cursor-pointer"
                   >
                     Mở tab riêng
                   </button>
                 </div>
               </div>
 
-              {/* Live Menu Renderer */}
-              <GuestMenuView
+              {/* Shared guest renderer with optional editing controls. */}
+              <div className="owner-device-picker" role="group" aria-label="Kích thước xem trước">
+                <button type="button" aria-pressed={previewDevice === 'desktop'} onClick={() => setPreviewDevice('desktop')}>Màn hình lớn</button>
+                <button type="button" aria-pressed={previewDevice === 'mobile'} onClick={() => setPreviewDevice('mobile')}>Điện thoại</button>
+              </div>
+                <p className="owner-preview-caption">{previewDevice === 'mobile' ? 'Khung điện thoại 390 px · Tự co theo màn hình của bạn' : 'Bố cục màn hình lớn · Co theo không gian làm việc'}</p>
+                <div className="owner-preview-canvas"><div className="owner-preview-frame" data-device={previewDevice}><GuestMenuView
                 shopData={shopData}
                 isPreview={true}
+                previewDevice={previewDevice}
                 isDirectEditMode={editorMode === 'edit'}
                 onDirectUpdateItem={handleDirectUpdateItem}
                 onDirectUpdateShop={handleDirectUpdateShop}
@@ -777,7 +867,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                 onOpenFullAddItem={handleOpenAddItem}
                 onOpenFullEditItem={handleOpenEditItem}
                 onOpenAddCategory={() => setIsCatManagerOpen(true)}
-              />
+                /></div></div>
             </div>
           )}
 
@@ -785,16 +875,16 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
           {activeTab === 'menu' && (
             <div className="space-y-5">
               {/* 1. Header Action Card */}
-              <div className="bg-white rounded-[28px] p-5 sm:p-6 border border-[#EFE5D9] shadow-xs flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+              <div className="bg-[#FFFCF7] rounded-[28px] p-5 sm:p-6 border border-[#E2D8CF] shadow-xs flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
                 <div>
-                  <h1 className="text-xl sm:text-2xl font-black text-[#241E35] tracking-tight">
+                  <h1 className="text-xl sm:text-2xl font-semibold text-[#163E37] tracking-tight">
                     Quản lý thực đơn
                   </h1>
-                  <p className="text-xs sm:text-sm text-[#6E6779] mt-1 font-medium">
-                    Tổng cộng <span className="font-bold text-[#241E35]">{items.length} món</span> trong{' '}
-                    <span className="font-bold text-[#241E35]">{categories.length} nhóm món</span>
+                  <p className="text-xs sm:text-sm text-[#746E79] mt-1 font-medium">
+                    Tổng cộng <span className="font-bold text-[#163E37]">{items.length} món</span> trong{' '}
+                    <span className="font-bold text-[#163E37]">{categories.length} nhóm món</span>
                     {searchQuery.trim() || selectedCatFilter !== 'all' || statusFilter !== 'all' ? (
-                      <span className="ml-2 text-[#FF5A36] font-bold">
+                      <span className="ml-2 text-[#7054AE] font-bold">
                         (Đang hiển thị {displayedItems.length} kết quả)
                       </span>
                     ) : null}
@@ -805,9 +895,9 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                   {/* Category Management Button */}
                   <button
                     onClick={() => setIsCatManagerOpen(true)}
-                    className="min-h-[42px] px-3.5 py-2 rounded-2xl border border-[#EFE5D9] text-[#241E35] text-xs font-bold hover:bg-[#FFF9F3] transition-colors inline-flex items-center gap-2 cursor-pointer shadow-2xs"
+                    className="min-h-[42px] px-3.5 py-2 rounded-2xl border border-[#E2D8CF] text-[#163E37] text-xs font-bold hover:bg-[#F4ECDF] transition-colors inline-flex items-center gap-2 cursor-pointer shadow-2xs"
                   >
-                    <FolderOpen className="w-4 h-4 text-[#FF5A36]" />
+                    <FolderOpen className="w-4 h-4 text-[#7054AE]" />
                     <span>Quản lý nhóm ({categories.length})</span>
                   </button>
 
@@ -821,18 +911,18 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                     }}
                     className={`min-h-[42px] px-3.5 py-2 rounded-2xl text-xs font-bold transition-all inline-flex items-center gap-2 cursor-pointer ${
                       isReorderMode
-                        ? 'bg-[#241E35] text-white shadow-xs'
-                        : 'border border-[#EFE5D9] bg-white text-[#241E35] hover:bg-[#FFF9F3]'
+                        ? 'bg-[#163E37] text-white shadow-xs'
+                        : 'border border-[#E2D8CF] bg-[#FFFCF7] text-[#163E37] hover:bg-[#F4ECDF]'
                     }`}
                   >
-                    <ArrowUpDown className="w-4 h-4 text-[#FF5A36]" />
+                    <ArrowUpDown className="w-4 h-4 text-[#7054AE]" />
                     <span>{isReorderMode ? 'Xong sắp xếp' : 'Sắp xếp thứ tự'}</span>
                   </button>
 
                   {/* Primary Add Item Button */}
                   <button
                     onClick={() => handleOpenAddItem()}
-                    className="min-h-[42px] px-4 sm:px-5 py-2 rounded-2xl bg-[#FF5A36] text-white text-xs font-black hover:bg-[#E6431F] transition-colors inline-flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-[0.98] ml-auto lg:ml-0"
+                    className="min-h-[42px] px-4 sm:px-5 py-2 rounded-2xl bg-[#7054AE] text-white text-xs font-semibold hover:bg-[#624598] transition-colors inline-flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-[0.98] ml-auto lg:ml-0"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Thêm món mới</span>
@@ -842,17 +932,17 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
 
               {/* ================= REORDER MODE VIEW ================= */}
               {isReorderMode ? (
-                <div className="bg-white rounded-[28px] p-5 sm:p-6 border-2 border-[#241E35] shadow-md space-y-4 animate-in fade-in duration-150">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#EFE5D9]">
+                <div className="bg-[#FFFCF7] rounded-[28px] p-5 sm:p-6 border-2 border-[#163E37] shadow-md space-y-4 animate-in fade-in duration-150">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#E2D8CF]">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-[#241E35] text-white flex items-center justify-center shrink-0">
-                        <ArrowUpDown className="w-4 h-4 text-[#E5F76A]" />
+                      <div className="w-8 h-8 rounded-xl bg-[#163E37] text-white flex items-center justify-center shrink-0">
+                        <ArrowUpDown className="w-4 h-4 text-[#E0F1E9]" />
                       </div>
                       <div>
-                        <h3 className="text-sm font-black text-[#241E35]">
+                        <h3 className="text-sm font-semibold text-[#163E37]">
                           Chế độ sắp xếp thứ tự món
                         </h3>
-                        <p className="text-xs text-[#6E6779]">
+                        <p className="text-xs text-[#746E79]">
                           Chọn nhóm món bên dưới và dùng mũi tên để chỉnh vị trí hiển thị ngoài menu
                         </p>
                       </div>
@@ -860,7 +950,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
 
                     <button
                       onClick={() => setIsReorderMode(false)}
-                      className="px-4 py-2 rounded-xl bg-[#241E35] text-white text-xs font-black hover:bg-black transition-colors self-start sm:self-auto cursor-pointer"
+                      className="px-4 py-2 rounded-xl bg-[#163E37] text-white text-xs font-semibold hover:bg-black transition-colors self-start sm:self-auto cursor-pointer"
                     >
                       Hoàn tất sắp xếp
                     </button>
@@ -875,10 +965,10 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                         <button
                           key={c.id}
                           onClick={() => setReorderCatId(c.id)}
-                          className={`min-h-[36px] px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer ${
+                          className={`min-h-[36px] px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                             isSelected
-                              ? 'bg-[#FF5A36] text-white shadow-xs'
-                              : 'bg-[#FFF9F3] text-[#241E35] border border-[#EFE5D9] hover:border-[#FF5A36]'
+                              ? 'bg-[#7054AE] text-white shadow-xs'
+                              : 'bg-[#F4ECDF] text-[#163E37] border border-[#E2D8CF] hover:border-[#7054AE]'
                           }`}
                         >
                           {c.name} ({count})
@@ -889,7 +979,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
 
                   {/* Reorder List for selected Category */}
                   {itemsForReorder.length === 0 ? (
-                    <div className="p-8 text-center text-[#6E6779] bg-[#FFF9F3] rounded-2xl border border-dashed border-[#EFE5D9]">
+                    <div className="p-8 text-center text-[#746E79] bg-[#F4ECDF] rounded-2xl border border-dashed border-[#E2D8CF]">
                       Nhóm này chưa có món nào để sắp xếp.
                     </div>
                   ) : (
@@ -897,10 +987,10 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                       {itemsForReorder.map((item, idx) => (
                         <div
                           key={item.id}
-                          className="p-3 sm:p-3.5 bg-[#FFF9F3] rounded-2xl border border-[#EFE5D9] flex items-center justify-between gap-3 hover:border-[#FF5A36]/60 transition-colors"
+                          className="p-3 sm:p-3.5 bg-[#F4ECDF] rounded-2xl border border-[#E2D8CF] flex items-center justify-between gap-3 hover:border-[#7054AE]/60 transition-colors"
                         >
                           <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <span className="w-7 text-xs font-mono font-black text-[#FF5A36] text-center shrink-0">
+                            <span className="w-7 text-xs font-mono font-semibold text-[#7054AE] text-center shrink-0">
                               #{idx + 1}
                             </span>
 
@@ -908,19 +998,19 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                               <img
                                 src={item.imageUrl}
                                 alt={item.name}
-                                className="w-10 h-10 rounded-xl object-cover border border-[#EFE5D9] shrink-0"
+                                className="w-10 h-10 rounded-xl object-cover border border-[#E2D8CF] shrink-0"
                               />
                             ) : (
-                              <div className="w-10 h-10 rounded-xl bg-white border border-[#EFE5D9] flex items-center justify-center text-[10px] text-[#6E6779] shrink-0 font-bold">
+                              <div className="w-10 h-10 rounded-xl bg-[#FFFCF7] border border-[#E2D8CF] flex items-center justify-center text-[10px] text-[#746E79] shrink-0 font-bold">
                                 Không ảnh
                               </div>
                             )}
 
                             <div className="min-w-0 flex-1">
-                              <div className="text-xs font-black text-[#241E35] truncate">
+                              <div className="text-xs font-semibold text-[#163E37] truncate">
                                 {item.name}
                               </div>
-                              <div className="text-[11px] text-[#6E6779]">
+                              <div className="text-[11px] text-[#746E79]">
                                 {item.pricingMode === 'single'
                                   ? formatVND(item.price)
                                   : `Từ ${formatVND(Math.min(...item.options.map((o) => o.price || 0)))}`}
@@ -933,7 +1023,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                             <button
                               onClick={() => handleMoveItemOrder(item.id, 'top')}
                               disabled={idx === 0}
-                              className="p-1.5 rounded-lg text-[#6E6779] hover:text-[#241E35] hover:bg-white disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
+                              className="p-1.5 rounded-lg text-[#746E79] hover:text-[#163E37] hover:bg-[#FFFCF7] disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
                               title="Lên đầu danh sách"
                             >
                               <ChevronsUp className="w-4 h-4" />
@@ -941,7 +1031,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                             <button
                               onClick={() => handleMoveItemOrder(item.id, 'up')}
                               disabled={idx === 0}
-                              className="p-1.5 rounded-lg text-[#6E6779] hover:text-[#241E35] hover:bg-white disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
+                              className="p-1.5 rounded-lg text-[#746E79] hover:text-[#163E37] hover:bg-[#FFFCF7] disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
                               title="Lên trên 1 vị trí"
                             >
                               <ArrowUp className="w-4 h-4" />
@@ -949,7 +1039,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                             <button
                               onClick={() => handleMoveItemOrder(item.id, 'down')}
                               disabled={idx === itemsForReorder.length - 1}
-                              className="p-1.5 rounded-lg text-[#6E6779] hover:text-[#241E35] hover:bg-white disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
+                              className="p-1.5 rounded-lg text-[#746E79] hover:text-[#163E37] hover:bg-[#FFFCF7] disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
                               title="Xuống dưới 1 vị trí"
                             >
                               <ArrowDown className="w-4 h-4" />
@@ -957,7 +1047,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                             <button
                               onClick={() => handleMoveItemOrder(item.id, 'bottom')}
                               disabled={idx === itemsForReorder.length - 1}
-                              className="p-1.5 rounded-lg text-[#6E6779] hover:text-[#241E35] hover:bg-white disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
+                              className="p-1.5 rounded-lg text-[#746E79] hover:text-[#163E37] hover:bg-[#FFFCF7] disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
                               title="Xuống cuối danh sách"
                             >
                               <ChevronsDown className="w-4 h-4" />
@@ -971,23 +1061,23 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
               ) : (
                 /* ================= STANDARD FILTER & SEARCH TOOLBAR ================= */
                 <>
-                  <div className="bg-white rounded-[28px] p-4 sm:p-5 border border-[#EFE5D9] shadow-xs space-y-3.5">
+                  <div style={{ top: headerHeight }} className="sticky z-20 bg-[#FFFCF7] rounded-[28px] p-4 sm:p-5 border border-[#E2D8CF] shadow-xs space-y-3.5">
                     {/* Search & Status Filters */}
                     <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
                       {/* Search Input */}
                       <div className="relative flex-1">
-                        <Search className="w-4 h-4 text-[#6E6779] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                        <Search className="w-4 h-4 text-[#746E79] absolute left-3.5 top-1/2 -translate-y-1/2" />
                         <input
                           type="text"
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           placeholder="Tìm món theo tên hoặc mô tả..."
-                          className="w-full min-h-[42px] pl-10 pr-9 py-2 rounded-2xl border border-[#EFE5D9] bg-[#FFF9F3] text-xs text-[#241E35] font-bold focus:outline-hidden focus:border-[#FF5A36] focus:bg-white transition-colors placeholder:text-[#8E8799]"
+                          className="w-full min-h-[42px] pl-10 pr-9 py-2 rounded-2xl border border-[#E2D8CF] bg-[#F4ECDF] text-xs text-[#163E37] font-bold focus:outline-hidden focus:border-[#7054AE] focus:bg-[#FFFCF7] transition-colors placeholder:text-[#8E8799]"
                         />
                         {searchQuery && (
                           <button
                             onClick={() => setSearchQuery('')}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6E6779] hover:text-[#241E35] cursor-pointer"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#746E79] hover:text-[#163E37] cursor-pointer"
                           >
                             <X className="w-4 h-4" />
                           </button>
@@ -996,7 +1086,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
 
                       {/* Status Filter Selector */}
                       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-                        <span className="text-[11px] font-bold text-[#6E6779] shrink-0 mr-1">
+                        <span className="text-[11px] font-bold text-[#746E79] shrink-0 mr-1">
                           Trạng thái:
                         </span>
                         {(
@@ -1012,8 +1102,8 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                             onClick={() => setStatusFilter(st.id)}
                             className={`min-h-[34px] px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
                               statusFilter === st.id
-                                ? 'bg-[#241E35] text-white shadow-xs'
-                                : 'bg-[#FFF9F3] text-[#6E6779] border border-[#EFE5D9] hover:text-[#241E35]'
+                                ? 'bg-[#163E37] text-white shadow-xs'
+                                : 'bg-[#F4ECDF] text-[#746E79] border border-[#E2D8CF] hover:text-[#163E37]'
                             }`}
                           >
                             {st.label}
@@ -1022,50 +1112,21 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                       </div>
                     </div>
 
-                    {/* Category Filter Horizontal Pills */}
-                    <div className="pt-3 border-t border-[#EFE5D9] flex items-center gap-2 overflow-x-auto scrollbar-none">
-                      <span className="text-[11px] font-bold text-[#6E6779] shrink-0">
-                        Nhóm món:
-                      </span>
-                      <button
-                        onClick={() => setSelectedCatFilter('all')}
-                        className={`min-h-[32px] px-3.5 py-1 rounded-full text-xs font-black whitespace-nowrap transition-colors cursor-pointer ${
-                          selectedCatFilter === 'all'
-                            ? 'bg-[#FF5A36] text-white shadow-xs'
-                            : 'bg-[#FFF9F3] border border-[#EFE5D9] text-[#6E6779] hover:text-[#241E35]'
-                        }`}
-                      >
-                        Tất cả ({items.length})
-                      </button>
-                      {categories.map((c) => {
-                        const count = items.filter((i) => i.categoryId === c.id).length;
-                        return (
-                          <button
-                            key={c.id}
-                            onClick={() => setSelectedCatFilter(c.id)}
-                            className={`min-h-[32px] px-3.5 py-1 rounded-full text-xs font-black whitespace-nowrap transition-colors cursor-pointer ${
-                              selectedCatFilter === c.id
-                                ? 'bg-[#FF5A36] text-white shadow-xs'
-                                : 'bg-[#FFF9F3] border border-[#EFE5D9] text-[#6E6779] hover:text-[#241E35]'
-                            }`}
-                          >
-                            {c.name} ({count})
-                          </button>
-                        );
-                      })}
+                    <div className="pt-3 border-t border-[#E2D8CF]">
+                      <CategoryTabs categories={categories} items={items}
+                        selectedId={selectedCatFilter} onSelect={setSelectedCatFilter} />
                     </div>
                   </div>
-
                   {/* ================= ITEMS LIST & MANAGEMENT TABLE ================= */}
                   {displayedItems.length === 0 ? (
-                    <div className="bg-white rounded-[28px] p-10 text-center border border-[#EFE5D9] shadow-xs space-y-3">
-                      <div className="w-12 h-12 rounded-2xl bg-[#FFF9F3] text-[#FF5A36] flex items-center justify-center mx-auto">
+                    <div className="bg-[#FFFCF7] rounded-[28px] p-10 text-center border border-[#E2D8CF] shadow-xs space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-[#F4ECDF] text-[#7054AE] flex items-center justify-center mx-auto">
                         <UtensilsCrossed className="w-6 h-6" />
                       </div>
-                      <h3 className="text-base font-black text-[#241E35]">
+                      <h3 className="text-base font-semibold text-[#163E37]">
                         Không tìm thấy món ăn nào
                       </h3>
-                      <p className="text-xs text-[#6E6779] max-w-sm mx-auto">
+                      <p className="text-xs text-[#746E79] max-w-sm mx-auto">
                         {searchQuery
                           ? `Không có món nào khớp với từ khóa "${searchQuery}". Hãy thử tìm từ khác hoặc xóa bộ lọc.`
                           : 'Chưa có món trong danh mục này. Hãy thêm món mới để bắt đầu.'}
@@ -1078,21 +1139,21 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                               setSelectedCatFilter('all');
                               setStatusFilter('all');
                             }}
-                            className="px-4 py-2 rounded-xl border border-[#EFE5D9] text-xs font-bold text-[#241E35] hover:bg-[#FFF9F3] cursor-pointer"
+                            className="px-4 py-2 rounded-xl border border-[#E2D8CF] text-xs font-bold text-[#163E37] hover:bg-[#F4ECDF] cursor-pointer"
                           >
                             Xóa bộ lọc
                           </button>
                         ) : null}
                         <button
                           onClick={() => handleOpenAddItem()}
-                          className="px-4 py-2 rounded-xl bg-[#FF5A36] text-white text-xs font-bold hover:bg-[#E6431F] cursor-pointer"
+                          className="px-4 py-2 rounded-xl bg-[#7054AE] text-white text-xs font-bold hover:bg-[#624598] cursor-pointer"
                         >
                           Thêm món mới ngay
                         </button>
                       </div>
                     </div>
                   ) : (
-                    <div className="bg-white rounded-[28px] border border-[#EFE5D9] shadow-xs overflow-hidden divide-y divide-[#EFE5D9]">
+                    <div className="bg-[#FFFCF7] rounded-[28px] border border-[#E2D8CF] shadow-xs overflow-hidden divide-y divide-[#E2D8CF]">
                       {displayedItems.map((item) => {
                         const cat = categories.find((c) => c.id === item.categoryId);
                         const catName = cat ? cat.name : 'Chưa phân nhóm';
@@ -1100,12 +1161,12 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                         return (
                           <div
                             key={item.id}
-                            className="p-4 sm:p-4.5 hover:bg-[#FFF9F3]/60 transition-colors flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5"
+                            className="p-4 sm:p-4.5 hover:bg-[#F4ECDF]/60 transition-colors flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5"
                           >
                             {/* Left: Thumbnail & Item Meta */}
                             <div className="flex items-center gap-3.5 min-w-0 flex-1">
                               {item.imageUrl ? (
-                                <div className="w-14 h-14 rounded-2xl overflow-hidden bg-[#241E35] shrink-0 border border-[#EFE5D9]">
+                                <div className="owner-menu-thumb w-14 h-14 rounded-2xl overflow-hidden bg-[#163E37] shrink-0 border border-[#E2D8CF]">
                                   <img
                                     src={item.imageUrl}
                                     alt={item.name}
@@ -1114,30 +1175,30 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                                   />
                                 </div>
                               ) : (
-                                <div className="w-14 h-14 rounded-2xl bg-[#FFF9F3] text-[#6E6779] shrink-0 border border-[#EFE5D9] flex items-center justify-center text-[10px] font-bold text-center p-1">
+                                <div className="w-14 h-14 rounded-2xl bg-[#F4ECDF] text-[#746E79] shrink-0 border border-[#E2D8CF] flex items-center justify-center text-[10px] font-bold text-center p-1">
                                   Không ảnh
                                 </div>
                               )}
 
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <h3 className="text-sm font-black text-[#241E35] truncate">
+                                  <h3 className="text-sm font-semibold text-[#163E37] truncate">
                                     {item.name}
                                   </h3>
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FFF9F3] text-[#6E6779] border border-[#EFE5D9]">
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#F4ECDF] text-[#746E79] border border-[#E2D8CF]">
                                     {catName}
                                   </span>
                                 </div>
 
                                 {item.description && (
-                                  <p className="text-[11px] text-[#6E6779] line-clamp-1 mt-0.5 font-medium">
+                                  <p className="text-[11px] text-[#746E79] line-clamp-1 mt-0.5 font-medium">
                                     {item.description}
                                   </p>
                                 )}
 
                                 {/* Price Representation */}
                                 <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                  <div className="text-xs font-black text-[#FF5A36] tabular-nums">
+                                  <div className="text-xs font-semibold text-[#7054AE] tabular-nums">
                                     {item.pricingMode === 'single' ? (
                                       formatVND(item.price)
                                     ) : (
@@ -1148,8 +1209,8 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                                   </div>
 
                                   {item.pricingMode === 'multiple' && (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-[#E5F76A] text-[#241E35] border border-[#d6ea56]">
-                                      <Layers className="w-3 h-3 text-[#241E35]" />
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#E0F1E9] text-[#163E37] border border-[#B9DCCC]">
+                                      <Layers className="w-3 h-3 text-[#163E37]" />
                                       <span>Nhiều mức giá ({item.options.length} lựa chọn)</span>
                                     </span>
                                   )}
@@ -1158,10 +1219,11 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                             </div>
 
                             {/* Right: Quick Controls (Status selector, Duplicate, Edit, Delete) */}
-                            <div className="flex items-center gap-2 shrink-0 self-stretch sm:self-center justify-between sm:justify-end pt-2 sm:pt-0 border-t sm:border-t-0 border-[#EFE5D9]/70">
+                            <div className="flex items-center gap-2 shrink-0 self-stretch sm:self-center justify-between sm:justify-end pt-2 sm:pt-0 border-t sm:border-t-0 border-[#E2D8CF]/70">
                               {/* Quick Status Dropdown */}
                               <select
                                 value={item.status}
+                                aria-label={`Trạng thái ${item.name}`}
                                 onChange={(e) =>
                                   handleQuickStatusChange(
                                     item.id,
@@ -1172,7 +1234,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                                   item.status === 'available'
                                     ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
                                     : item.status === 'out_of_stock'
-                                    ? 'bg-[#E5F76A] border-[#d6ea56] text-[#241E35]'
+                                    ? 'bg-[#E0F1E9] border-[#B9DCCC] text-[#163E37]'
                                     : 'bg-stone-100 border-stone-300 text-stone-700'
                                 }`}
                               >
@@ -1187,7 +1249,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => handleDuplicateItem(item)}
-                                  className="min-h-[36px] min-w-[36px] p-2 rounded-xl border border-[#EFE5D9] text-[#6E6779] hover:text-[#241E35] hover:bg-[#FFF9F3] transition-colors flex items-center justify-center cursor-pointer"
+                                  className="min-h-[36px] min-w-[36px] p-2 rounded-xl border border-[#E2D8CF] text-[#746E79] hover:text-[#163E37] hover:bg-[#F4ECDF] transition-colors flex items-center justify-center cursor-pointer"
                                   title="Nhân bản món này (tạo bản sao)"
                                 >
                                   <Copy className="w-3.5 h-3.5" />
@@ -1197,7 +1259,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => handleOpenEditItem(item)}
-                                  className="min-h-[36px] min-w-[36px] p-2 rounded-xl border border-[#EFE5D9] text-[#6E6779] hover:text-[#241E35] hover:bg-[#FFF9F3] transition-colors flex items-center justify-center cursor-pointer"
+                                  className="min-h-[36px] min-w-[36px] p-2 rounded-xl border border-[#E2D8CF] text-[#746E79] hover:text-[#163E37] hover:bg-[#F4ECDF] transition-colors flex items-center justify-center cursor-pointer"
                                   title="Chỉnh sửa chi tiết"
                                 >
                                   <Edit2 className="w-3.5 h-3.5" />
@@ -1207,7 +1269,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => setDeletingItem(item)}
-                                  className="min-h-[36px] min-w-[36px] p-2 rounded-xl border border-[#EFE5D9] text-[#6E6779] hover:text-rose-600 hover:bg-rose-50 transition-colors flex items-center justify-center cursor-pointer"
+                                  className="min-h-[36px] min-w-[36px] p-2 rounded-xl border border-[#E2D8CF] text-[#746E79] hover:text-rose-600 hover:bg-rose-50 transition-colors flex items-center justify-center cursor-pointer"
                                   title="Xóa món"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -1225,23 +1287,22 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
           )}
 
           {/* ================= TAB 3: SHOP INFO ================= */}
-          {activeTab === 'info' && (
-            <ShopInfoForm
+          <section hidden={activeTab !== 'info'} aria-label="Thông tin quán"><ShopInfoForm
               shop={shop}
-              onSave={(updated) => {
-                onUpdateDraft({
+              onDirtyChange={setInfoDirty}
+              onOpenPreview={() => { if (infoDirty) { showToast('info','Lưu thông tin trước khi xem bản nháp.'); return; } setEditorMode('preview'); setActiveTab('editor'); }}
+              onSave={async (updated) => {
+                const result = await onUpdateDraft({
                   ...shopData,
                   shop: updated,
                 });
-                setHasUnsavedChanges(true);
-                showToast('success', 'Đã lưu thông tin quán vào bản nháp!');
+                return result;
               }}
-            />
-          )}
+            /></section>
 
           {/* ================= TAB 4: QR CODE ================= */}
           {activeTab === 'qr' && (
-            <QRView shop={shop} onOpenGuestView={onOpenGuestUrl} />
+            <QRView shop={shop} onOpenGuestView={openPublishedMenu} isFirebaseUser={!!user.isFirebaseUser} />
           )}
         </main>
       </div>
@@ -1280,38 +1341,22 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         onClose={() => setDeletingItem(null)}
       />
 
-      {/* 4. Reset Demo Confirmation Modal */}
-      <DeleteConfirmModal
-        isOpen={isResetConfirmOpen}
-        title="Khôi phục thực đơn mẫu ban đầu"
-        description='Hành động này sẽ đặt lại toàn bộ quán "Bếp & Cà phê Mộc" về trạng thái chuẩn ban đầu.'
-        confirmLabel="Khôi phục dữ liệu mẫu"
-        cancelLabel="Giữ nguyên"
-        isDanger={false}
-        onConfirm={() => {
-          onResetDemo();
-          setIsResetConfirmOpen(false);
-          setHasUnsavedChanges(false);
-        }}
-        onClose={() => setIsResetConfirmOpen(false)}
-      />
-
       {/* 5. Unsaved Changes Navigation Guard Modal */}
       {pendingTabSwitch && (
         <DeleteConfirmModal
           isOpen={true}
           title="Bạn có thay đổi chưa lưu trên bản nháp"
-          description="Bạn đang có chỉnh sửa trực tiếp chưa lưu nháp. Bạn có muốn lưu bản nháp ngay hay bỏ thay đổi để chuyển trang?"
+          description="Bạn có chỉnh sửa chưa được xác nhận lưu. Hãy lưu trước khi chuyển trang, hoặc giữ chỉnh sửa và chuyển trang."
           confirmLabel="Lưu bản nháp & Chuyển trang"
-          cancelLabel="Bỏ thay đổi & Chuyển"
+          cancelLabel="Giữ chỉnh sửa & Chuyển"
           isDanger={false}
-          onConfirm={() => {
-            handleManualSaveDraft();
-            setActiveTab(pendingTabSwitch as any);
-            setPendingTabSwitch(null);
+          onConfirm={async () => {
+            if (await handleManualSaveDraft()) {
+              setActiveTab(pendingTabSwitch as any);
+              setPendingTabSwitch(null);
+            }
           }}
           onClose={() => {
-            setHasUnsavedChanges(false);
             setActiveTab(pendingTabSwitch as any);
             setPendingTabSwitch(null);
           }}

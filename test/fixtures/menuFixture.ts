@@ -1,4 +1,4 @@
-import { ShopData, UserProfile } from '../types/menu';
+import { ShopData, UserProfile } from '../../src/types/menu';
 
 export const DEMO_SHOP_ID = 'moc-bep-cafe';
 

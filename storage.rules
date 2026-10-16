@@ -1,0 +1,21 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Namespace assets by authenticated UID. No cross-database lookups are needed.
+    match /menu-media/{ownerId}/v1/{digest}/{fileName} {
+      function owner() { return request.auth != null && request.auth.uid == ownerId; }
+      allow get: if owner();
+      allow list: if false;
+      allow create: if owner()
+        && digest.matches('^[a-f0-9]{64}$')
+        && fileName.matches('^(thumbnail|card|detail)\\.(webp|jpg|png)$')
+        && request.resource.size > 0 && request.resource.size <= 256 * 1024
+        && request.resource.contentType.matches('image/(webp|jpeg|png)')
+        && request.resource.metadata.ownerId == ownerId
+        && request.resource.metadata.algorithm == 'v1';
+      // Content-addressed objects are immutable. Do not delete photos still used by a published menu.
+      allow update, delete: if false;
+    }
+    match /{allPaths=**} { allow read, write: if false; }
+  }
+}

@@ -1,0 +1,58 @@
+.guest-menu-page .menu-category-entry{padding:32px 0 36px;border-top:1px solid #163e3720;background:transparent}
+.menu-eyebrow{display:block;font:600 10px/1.5 var(--font-body);letter-spacing:.13em;text-transform:uppercase;color:#74806e;margin-bottom:10px}
+.guest-menu-page .menu-category-entry-heading{display:flex;justify-content:space-between;align-items:end;gap:24px;margin-bottom:22px}
+.guest-menu-page .menu-category-entry-heading h2{font:450 clamp(30px,4vw,50px)/1.12 var(--font-display);letter-spacing:-.04em;color:#163e37;margin:0;text-wrap:balance}
+.menu-category-entry-heading h2 em{color:#80649a;font-weight:400}
+.guest-menu-page .menu-category-entry-heading p{font-size:12px;line-height:1.7;color:#637065;margin:0 0 3px}
+.menu-category-search-wrap{position:relative;max-width:380px;margin-bottom:26px}
+.guest-menu-page .menu-category-entry-search{display:flex;align-items:center;gap:10px;border:1px solid #163e3725;background:#fffcf7;border-radius:12px;min-height:48px;padding:10px 48px 10px 14px;margin:0;max-width:none}
+.menu-category-entry-search svg{height:17px;width:17px;color:#637065;flex-shrink:0}
+.guest-menu-page .menu-category-entry-search input{width:100%;min-width:0;background:transparent;font:400 13px var(--font-body);color:#163e37;outline:none}
+.menu-category-entry-search:focus-within{outline:2px solid #80649a;outline-offset:2px}
+.menu-category-search-clear{position:absolute;right:2px;top:2px;width:44px;height:44px;display:grid;place-items:center;color:#637065}
+.menu-category-search-clear svg{height:16px;width:16px}
+.guest-menu-page .menu-category-entry-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:26px}
+.guest-menu-page .menu-category-entry-card{display:block;width:100%;min-width:0;background:transparent;color:#163e37;text-align:left;border:0;cursor:pointer;animation:category-enter .4s both;overflow:visible;border-radius:22px}
+.menu-category-photo{display:block;position:relative;width:100%;aspect-ratio:3/2;border-radius:22px;overflow:hidden;background:#e7e0d4}
+.menu-category-photo>img{height:100%;width:100%;object-fit:cover;object-position:center;transition:transform .45s ease}
+.menu-category-entry-card:nth-child(2n+1) .menu-category-photo{border-top-left-radius:80px}
+.menu-category-entry-card:nth-child(2n) .menu-category-photo{border-top-right-radius:80px}
+.menu-category-number{position:absolute;top:14px;left:14px;display:grid;place-items:center;width:36px;height:36px;background:#fffcf7ed;color:#163e37;border-radius:50%;font:500 14px var(--font-display);font-variant-numeric:tabular-nums}
+.guest-menu-page .menu-category-entry-copy{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 2px 4px;width:100%;position:relative}
+.menu-category-entry-copy>span:first-child{min-width:0}
+.guest-menu-page .menu-category-entry-copy strong{display:block;font:450 clamp(25px,3vw,36px)/1.15 var(--font-display);letter-spacing:-.035em;overflow-wrap:anywhere;text-shadow:none}
+.menu-category-entry-copy>span>span{display:block;font-size:11px;color:#637065;margin-top:7px}
+.guest-menu-page .menu-category-entry-arrow{position:static;display:grid;place-items:center;flex-shrink:0;height:44px;width:44px;border:1px solid #a89ab9;border-radius:50%;background:transparent;color:#163e37;transform:none;transition:background .2s,color .2s}
+.menu-category-entry-arrow svg{width:20px;height:20px;stroke-width:1.4}
+.menu-category-entry-fallback{display:grid;place-items:center;width:100%;height:100%;background:#e5dcef;color:#73816e}
+.menu-category-entry-fallback svg{width:56px;height:56px;stroke-width:1}
+.guest-menu-page .menu-category-entry-all{display:flex;align-items:center;justify-content:space-between;gap:20px;width:100%;margin:30px 0 0;padding:20px 24px;min-height:72px;background:#e5dcef;color:#163e37;border-radius:16px;font:450 25px/1.2 var(--font-display);cursor:pointer;transition:background .2s}
+.menu-category-entry-all small{font:500 11px var(--font-body);margin-left:12px;color:#655773;white-space:nowrap}
+.menu-category-entry-all>svg{height:24px;width:24px;flex-shrink:0;stroke-width:1.5}
+.menu-category-empty{padding:32px 20px;text-align:center;border:1px dashed #163e3730;border-radius:16px;color:#637065;font-size:13px}
+.menu-category-empty>svg{height:28px;width:28px;margin:0 auto 12px}
+.menu-category-empty button{min-height:44px;color:#735d89;text-decoration:underline}
+@media(hover:hover) and (pointer:fine){.menu-category-entry-card:hover .menu-category-photo>img{transform:scale(1.035)}.menu-category-entry-card:hover .menu-category-entry-arrow{background:#163e37;color:#fffcf7;border-color:#163e37}.guest-menu-page .menu-category-entry-all:hover{background:#dcd0e9}}
+@media(max-width:600px){
+ .guest-menu-page .menu-category-entry{padding-top:26px}
+ .guest-menu-page .menu-category-entry-heading{align-items:start;gap:12px;margin-bottom:20px}
+ .guest-menu-page .menu-category-entry-heading h2{font-size:32px;max-width:13ch}
+ .guest-menu-page .menu-category-entry-heading p{display:none}
+ .menu-category-search-wrap{max-width:none;margin-bottom:20px}
+ .guest-menu-page .menu-category-entry-search input{font-size:16px}
+ .guest-menu-page .menu-category-entry-list{gap:20px 14px}
+ .menu-category-photo{aspect-ratio:3/2;border-radius:14px}
+ .menu-category-entry-card:nth-child(2n+1) .menu-category-photo{border-top-left-radius:40px}
+ .menu-category-entry-card:nth-child(2n) .menu-category-photo{border-top-right-radius:40px}
+ .menu-category-number{width:28px;height:28px;top:8px;left:8px;font-size:12px}
+ .guest-menu-page .menu-category-entry-copy{padding:12px 0 0;gap:6px;align-items:start}
+ .guest-menu-page .menu-category-entry-copy strong{font-size:22px}
+ .menu-category-entry-copy>span>span{font-size:10px;margin-top:5px}
+ .guest-menu-page .menu-category-entry-arrow{width:28px;height:28px;margin-top:2px}
+ .menu-category-entry-arrow svg{height:15px;width:15px}
+ .guest-menu-page .menu-category-entry-all{padding:18px;font-size:21px;margin-top:24px}
+ .menu-category-entry-all small{display:block;margin:7px 0 0}
+}
+@media(max-width:340px){.guest-menu-page .menu-category-entry-list{grid-template-columns:1fr}.guest-menu-page .menu-category-entry-copy strong{font-size:25px}}
+@keyframes category-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.menu-category-entry-card{animation:none!important}.menu-category-photo>img{transition:none}}

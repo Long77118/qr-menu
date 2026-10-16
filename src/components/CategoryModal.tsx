@@ -1,3 +1,5 @@
+import { OperationResult } from '../types/operations';
+import { CategoryPhotoField } from './CategoryPhotoField';
 import React, { useState } from 'react';
 import {
   X,
@@ -17,7 +19,7 @@ interface CategoryManagerModalProps {
   isOpen: boolean;
   categories: MenuCategory[];
   items: MenuItem[];
-  onSaveCategory: (name: string, id?: string) => void;
+  onSaveCategory: (name: string, id?: string, imageUrl?: string | null) => void | Promise<OperationResult>;
   onMoveCategoryOrder: (catId: string, direction: 'up' | 'down') => void;
   onDeleteCategory: (categoryId: string, targetCategoryId?: string) => void;
   onClose: () => void;
@@ -125,16 +127,16 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
-      <div className="bg-white w-full max-w-lg rounded-[28px] shadow-xl overflow-hidden my-4 sm:my-6 flex flex-col max-h-[90vh] border border-[#EFE5D9]">
+      <div className="bg-[#FFFCF7] w-full max-w-lg rounded-[28px] shadow-xl overflow-hidden my-4 sm:my-6 flex flex-col max-h-[90vh] border border-[#E2D8CF]">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-[#EFE5D9] flex items-center justify-between bg-[#FFF9F3] shrink-0">
+        <div className="px-5 py-4 border-b border-[#E2D8CF] flex items-center justify-between bg-[#F4ECDF] shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-[#FF5A36] text-white flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-[#7054AE] text-white flex items-center justify-center shrink-0">
               <FolderOpen className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-base font-black text-[#241E35]">Quản lý nhóm món</h2>
-              <p className="text-xs text-[#6E6779] font-medium">
+              <h2 className="text-base font-semibold text-[#163E37]">Quản lý nhóm món</h2>
+              <p className="text-xs text-[#746E79] font-medium">
                 Hiện có {categories.length} nhóm · Thứ tự phản ánh ngay ngoài menu
               </p>
             </div>
@@ -142,7 +144,7 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full text-[#6E6779] hover:text-[#241E35] hover:bg-white flex items-center justify-center transition-colors border border-transparent hover:border-[#EFE5D9] cursor-pointer"
+            className="w-8 h-8 rounded-full text-[#746E79] hover:text-[#163E37] hover:bg-[#FFFCF7] flex items-center justify-center transition-colors border border-transparent hover:border-[#E2D8CF] cursor-pointer"
             title="Đóng"
           >
             <X className="w-5 h-5" />
@@ -152,9 +154,9 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
         {/* Modal Body */}
         <div className="p-5 overflow-y-auto space-y-5 text-xs">
           {/* Add New Group Card */}
-          <div className="bg-[#FFF9F3] p-4 rounded-2xl border border-[#EFE5D9]">
-            <label className="block font-black text-[#241E35] mb-1.5">
-              Thêm nhóm món mới <span className="text-[#FF5A36]">*</span>
+          <div className="bg-[#F4ECDF] p-4 rounded-2xl border border-[#E2D8CF]">
+            <label className="block font-semibold text-[#163E37] mb-1.5">
+              Thêm nhóm món mới <span className="text-[#7054AE]">*</span>
             </label>
             <form onSubmit={handleAddNew} className="flex gap-2">
               <input
@@ -165,15 +167,15 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                   setNewCatError(null);
                 }}
                 placeholder="VD: Cơm & Mì, Trà hoa quả, Đồ uống..."
-                className={`flex-1 min-h-[42px] px-3.5 py-2 rounded-xl border bg-white text-sm text-[#241E35] font-bold focus:outline-hidden focus:ring-2 ${
+                className={`flex-1 min-h-[42px] px-3.5 py-2 rounded-xl border bg-[#FFFCF7] text-sm text-[#163E37] font-bold focus:outline-hidden focus:ring-2 ${
                   newCatError
                     ? 'border-rose-400 focus:ring-rose-200'
-                    : 'border-[#EFE5D9] focus:border-[#FF5A36] focus:ring-[#FF5A36]/20'
+                    : 'border-[#E2D8CF] focus:border-[#7054AE] focus:ring-[#7054AE]/20'
                 }`}
               />
               <button
                 type="submit"
-                className="min-h-[42px] px-4 py-2 rounded-xl bg-[#FF5A36] text-white font-black hover:bg-[#E6431F] transition-colors inline-flex items-center gap-1.5 shadow-xs shrink-0 cursor-pointer"
+                className="min-h-[42px] px-4 py-2 rounded-xl bg-[#7054AE] text-white font-semibold hover:bg-[#624598] transition-colors inline-flex items-center gap-1.5 shadow-xs shrink-0 cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 <span>Thêm</span>
@@ -190,16 +192,16 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
           {/* Group List & Ordering */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-black uppercase tracking-wider text-[#241E35]">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[#163E37]">
                 Danh sách nhóm &amp; Thứ tự hiển thị
               </span>
-              <span className="text-[11px] text-[#6E6779]">
+              <span className="text-[11px] text-[#746E79]">
                 Dùng mũi tên để thay đổi vị trí
               </span>
             </div>
 
             {sortedCategories.length === 0 ? (
-              <div className="p-6 text-center text-[#6E6779] bg-[#FFF9F3] rounded-2xl border border-dashed border-[#EFE5D9]">
+              <div className="p-6 text-center text-[#746E79] bg-[#F4ECDF] rounded-2xl border border-dashed border-[#E2D8CF]">
                 Chưa có nhóm nào. Vui lòng thêm nhóm món ở ô bên trên!
               </div>
             ) : (
@@ -211,11 +213,11 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                   return (
                     <div
                       key={cat.id}
-                      className="p-3 bg-white rounded-2xl border border-[#EFE5D9] flex items-center justify-between gap-3 hover:border-[#FF5A36]/40 transition-colors shadow-2xs"
+                      className="p-3 bg-[#FFFCF7] rounded-2xl border border-[#E2D8CF] flex flex-wrap items-center justify-between gap-3 hover:border-[#7054AE]/40 transition-colors shadow-2xs"
                     >
                       {/* Name or inline edit form */}
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                        <span className="w-6 text-[11px] font-mono font-bold text-[#6E6779] shrink-0 text-center">
+                        <span className="w-6 text-[11px] font-mono font-bold text-[#746E79] shrink-0 text-center">
                           #{idx + 1}
                         </span>
 
@@ -230,7 +232,7 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                                   setEditError(null);
                                 }}
                                 autoFocus
-                                className="flex-1 px-2.5 py-1 rounded-lg border border-[#FF5A36] text-xs font-bold text-[#241E35] focus:outline-hidden"
+                                className="flex-1 px-2.5 py-1 rounded-lg border border-[#7054AE] text-xs font-bold text-[#163E37] focus:outline-hidden"
                               />
                               <button
                                 type="button"
@@ -255,11 +257,11 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                           </div>
                         ) : (
                           <div className="min-w-0 flex-1">
-                            <div className="text-xs font-black text-[#241E35] truncate">
+                            <div className="text-xs font-semibold text-[#163E37] truncate">
                               {cat.name}
                             </div>
-                            <div className="text-[10px] text-[#6E6779] flex items-center gap-1.5 mt-0.5">
-                              <span className="px-1.5 py-0.2 bg-[#FFF9F3] border border-[#EFE5D9] rounded-md font-bold">
+                            <div className="text-[10px] text-[#746E79] flex items-center gap-1.5 mt-0.5">
+                              <span className="px-1.5 py-0.2 bg-[#F4ECDF] border border-[#E2D8CF] rounded-md font-bold">
                                 {itemsCount} món
                               </span>
                             </div>
@@ -275,7 +277,7 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                             type="button"
                             onClick={() => onMoveCategoryOrder(cat.id, 'up')}
                             disabled={idx === 0}
-                            className="p-1.5 rounded-lg text-[#6E6779] hover:text-[#241E35] hover:bg-[#FFF9F3] disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
+                            className="p-1.5 rounded-lg text-[#746E79] hover:text-[#163E37] hover:bg-[#F4ECDF] disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
                             title="Di chuyển lên trên"
                           >
                             <ArrowUp className="w-3.5 h-3.5" />
@@ -286,7 +288,7 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                             type="button"
                             onClick={() => onMoveCategoryOrder(cat.id, 'down')}
                             disabled={idx === sortedCategories.length - 1}
-                            className="p-1.5 rounded-lg text-[#6E6779] hover:text-[#241E35] hover:bg-[#FFF9F3] disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
+                            className="p-1.5 rounded-lg text-[#746E79] hover:text-[#163E37] hover:bg-[#F4ECDF] disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
                             title="Di chuyển xuống dưới"
                           >
                             <ArrowDown className="w-3.5 h-3.5" />
@@ -296,7 +298,7 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                           <button
                             type="button"
                             onClick={() => handleStartEdit(cat)}
-                            className="p-1.5 rounded-lg text-[#6E6779] hover:text-[#241E35] hover:bg-[#FFF9F3] cursor-pointer"
+                            className="p-1.5 rounded-lg text-[#746E79] hover:text-[#163E37] hover:bg-[#F4ECDF] cursor-pointer"
                             title="Đổi tên nhóm"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
@@ -306,13 +308,14 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                           <button
                             type="button"
                             onClick={() => handleInitiateDelete(cat)}
-                            className="p-1.5 rounded-lg text-[#6E6779] hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+                            className="p-1.5 rounded-lg text-[#746E79] hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
                             title="Xóa nhóm"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       )}
+                      <CategoryPhotoField category={cat} items={items} onSave={onSaveCategory} />
                     </div>
                   );
                 })}
@@ -322,11 +325,11 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3.5 border-t border-[#EFE5D9] flex items-center justify-end bg-[#FFF9F3] shrink-0">
+        <div className="px-5 py-3.5 border-t border-[#E2D8CF] flex items-center justify-end bg-[#F4ECDF] shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="min-h-[40px] px-5 py-2 rounded-xl bg-[#241E35] text-white font-bold hover:bg-black transition-colors cursor-pointer"
+            className="min-h-[40px] px-5 py-2 rounded-xl bg-[#163E37] text-white font-bold hover:bg-black transition-colors cursor-pointer"
           >
             Đóng
           </button>
@@ -336,7 +339,7 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
       {/* Embedded Deletion Dialog */}
       {deletingCat && (
         <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-2xs flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden border border-stone-200">
+          <div className="bg-[#FFFCF7] w-full max-w-md rounded-2xl shadow-xl overflow-hidden border border-stone-200">
             <div className="p-5 text-xs space-y-4">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
@@ -377,7 +380,7 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                       <select
                         value={targetTransferCatId}
                         onChange={(e) => setTargetTransferCatId(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-amber-300 bg-white text-stone-900 focus:outline-hidden font-bold"
+                        className="w-full px-3 py-2 rounded-lg border border-amber-300 bg-[#FFFCF7] text-stone-900 focus:outline-hidden font-bold"
                       >
                         {categories
                           .filter((c) => c.id !== deletingCat.id)
@@ -446,15 +449,15 @@ export const CategoryModal: React.FC<{
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
-      <div className="bg-white w-full max-w-sm rounded-[28px] shadow-xl overflow-hidden border border-[#EFE5D9]">
-        <div className="px-5 py-4 border-b border-[#EFE5D9] flex items-center justify-center relative bg-[#FFF9F3]">
-          <h2 className="text-sm font-black text-[#241E35]">
+      <div className="bg-[#FFFCF7] w-full max-w-sm rounded-[28px] shadow-xl overflow-hidden border border-[#E2D8CF]">
+        <div className="px-5 py-4 border-b border-[#E2D8CF] flex items-center justify-center relative bg-[#F4ECDF]">
+          <h2 className="text-sm font-semibold text-[#163E37]">
             {category ? 'Đổi tên nhóm món' : 'Thêm nhóm món mới'}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full text-[#6E6779] hover:text-[#241E35] hover:bg-white flex items-center justify-center transition-colors border border-transparent hover:border-[#EFE5D9] cursor-pointer"
+            className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full text-[#746E79] hover:text-[#163E37] hover:bg-[#FFFCF7] flex items-center justify-center transition-colors border border-transparent hover:border-[#E2D8CF] cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -469,8 +472,8 @@ export const CategoryModal: React.FC<{
           )}
 
           <div>
-            <label className="block font-bold text-[#241E35] mb-1">
-              Tên nhóm món <span className="text-[#FF5A36]">*</span>
+            <label className="block font-bold text-[#163E37] mb-1">
+              Tên nhóm món <span className="text-[#7054AE]">*</span>
             </label>
             <input
               type="text"
@@ -481,21 +484,21 @@ export const CategoryModal: React.FC<{
               }}
               placeholder="VD: Cơm, Mì, Món ăn thêm, Cà phê, Trà..."
               autoFocus
-              className="w-full min-h-[42px] px-3.5 py-2 rounded-xl border border-[#EFE5D9] focus:outline-hidden focus:border-[#FF5A36] focus:ring-2 focus:ring-[#FF5A36]/20 text-sm text-[#241E35] font-bold"
+              className="w-full min-h-[42px] px-3.5 py-2 rounded-xl border border-[#E2D8CF] focus:outline-hidden focus:border-[#7054AE] focus:ring-2 focus:ring-[#7054AE]/20 text-sm text-[#163E37] font-bold"
             />
           </div>
 
-          <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#EFE5D9]">
+          <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#E2D8CF]">
             <button
               type="button"
               onClick={onClose}
-              className="min-h-[40px] px-4 py-2 rounded-xl text-[#6E6779] hover:bg-[#FFF9F3] font-bold transition-colors cursor-pointer"
+              className="min-h-[40px] px-4 py-2 rounded-xl text-[#746E79] hover:bg-[#F4ECDF] font-bold transition-colors cursor-pointer"
             >
               Hủy
             </button>
             <button
               type="submit"
-              className="min-h-[40px] px-5 py-2 rounded-2xl bg-[#FF5A36] text-white font-black hover:bg-[#E6431F] transition-colors shadow-xs cursor-pointer"
+              className="min-h-[40px] px-5 py-2 rounded-2xl bg-[#7054AE] text-white font-semibold hover:bg-[#624598] transition-colors shadow-xs cursor-pointer"
             >
               {category ? 'Cập nhật' : 'Tạo nhóm'}
             </button>
@@ -539,7 +542,7 @@ export const DeleteCategoryDialog: React.FC<{
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-2xs flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden border border-stone-200">
+      <div className="bg-[#FFFCF7] w-full max-w-md rounded-2xl shadow-xl overflow-hidden border border-stone-200">
         <div className="p-5 text-xs space-y-4">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
@@ -571,7 +574,7 @@ export const DeleteCategoryDialog: React.FC<{
                   <select
                     value={targetCatId}
                     onChange={(e) => setTargetCatId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-amber-300 bg-white text-stone-900 focus:outline-hidden focus:ring-1 focus:ring-amber-500 font-bold"
+                    className="w-full px-3 py-2 rounded-lg border border-amber-300 bg-[#FFFCF7] text-stone-900 focus:outline-hidden focus:ring-1 focus:ring-amber-500 font-bold"
                   >
                     {otherCategories.map((c) => (
                       <option key={c.id} value={c.id}>

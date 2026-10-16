@@ -1,5 +1,5 @@
 import { ShopData, UserProfile } from '../types/menu';
-import { INITIAL_DEMO_DATA, DEMO_USER, DEMO_SHOP_ID } from '../data/mockData';
+import { getPublicMenuItems } from '../utils/publicMenu';
 
 const STORAGE_KEY_SHOPS = 'qr_menu_shops_v1';
 const STORAGE_KEY_SESSION = 'qr_menu_session_v1';
@@ -8,6 +8,7 @@ const STORAGE_KEY_USERS = 'qr_menu_users_v1';
 interface StoredShopRecord {
   draft: ShopData;
   published: ShopData | null;
+  pending?: { ownerId: string; token: string };
 }
 
 type ShopDictionary = Record<string, StoredShopRecord>;
@@ -48,13 +49,7 @@ function initializeStorage(): ShopDictionary {
     console.warn('Could not read existing shops from storage', e);
   }
 
-  // Pre-seed demo shop
-  const initialShops: ShopDictionary = {
-    [DEMO_SHOP_ID]: {
-      draft: JSON.parse(JSON.stringify(INITIAL_DEMO_DATA)),
-      published: JSON.parse(JSON.stringify(INITIAL_DEMO_DATA)),
-    },
-  };
+  const initialShops: ShopDictionary = {};
 
   try {
     localStorage.setItem(STORAGE_KEY_SHOPS, JSON.stringify(initialShops));
@@ -71,7 +66,8 @@ export const StorageService = {
     try {
       const raw = localStorage.getItem(STORAGE_KEY_SESSION);
       if (raw) {
-        return JSON.parse(raw);
+        const profile = JSON.parse(raw) as UserProfile;
+        return profile.isFirebaseUser === true ? profile : null;
       }
     } catch (e) {
       console.warn('Error reading session', e);
@@ -106,14 +102,7 @@ export const StorageService = {
     } catch (e) {
       console.warn('Error reading users', e);
     }
-    return [DEMO_USER];
-  },
-
-  loginDemoUser(): UserProfile {
-    // Ensure demo shop exists
-    this.ensureShopExists(DEMO_SHOP_ID);
-    this.setCurrentUser(DEMO_USER);
-    return DEMO_USER;
+    return [];
   },
 
   logout(): void {
@@ -123,21 +112,6 @@ export const StorageService = {
   // --- SHOP MANAGEMENT ---
   getAllShops(): ShopDictionary {
     return initializeStorage();
-  },
-
-  ensureShopExists(shopId: string): void {
-    const shops = this.getAllShops();
-    if (!shops[shopId]) {
-      shops[shopId] = {
-        draft: JSON.parse(JSON.stringify(INITIAL_DEMO_DATA)),
-        published: JSON.parse(JSON.stringify(INITIAL_DEMO_DATA)),
-      };
-      try {
-        localStorage.setItem(STORAGE_KEY_SHOPS, JSON.stringify(shops));
-      } catch (e) {
-        console.error('Error ensuring shop exists', e);
-      }
-    }
   },
 
   getShop(shopId: string): StoredShopRecord | null {
@@ -150,13 +124,14 @@ export const StorageService = {
     return record?.published || null;
   },
 
-  saveDraft(shopId: string, draftData: ShopData): { success: boolean; error?: string } {
+  saveDraft(shopId: string, draftData: ShopData, pending?: StoredShopRecord['pending']): { success: boolean; error?: string } {
     try {
       const shops = this.getAllShops();
       const existing = shops[shopId] || { draft: draftData, published: null };
       shops[shopId] = {
         ...existing,
         draft: draftData,
+        ...(pending ? { pending } : {}),
       };
       localStorage.setItem(STORAGE_KEY_SHOPS, JSON.stringify(shops));
       return { success: true };
@@ -173,6 +148,53 @@ export const StorageService = {
     }
   },
 
+  savePendingDraft(shopId: string, draft: ShopData, ownerId: string) {
+    const token = crypto.randomUUID();
+    return { ...this.saveDraft(shopId, draft, { ownerId, token }), token };
+  },
+
+  getPendingDraft(shopId: string, ownerId: string) {
+    const record = this.getShop(shopId);
+    return record?.pending?.ownerId === ownerId ? { draft: record.draft, token: record.pending.token } : null;
+  },
+
+  listPendingDrafts(ownerId: string) {
+    return Object.entries(this.getAllShops())
+      .filter(([, record]) => record.pending?.ownerId === ownerId)
+      .map(([shopId]) => shopId);
+  },
+
+  acknowledgeDraft(shopId: string, ownerId: string, token: string, savedDraft?:ShopData) {
+    try {
+      const shops = this.getAllShops();
+      const record = shops[shopId];
+      if (record?.pending?.ownerId !== ownerId || record.pending.token !== token) return { success: true };
+      if(savedDraft)record.draft=savedDraft;
+      delete record.pending;
+      localStorage.setItem(STORAGE_KEY_SHOPS, JSON.stringify(shops));
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
+
+  /** Update only the public cache; a newer local draft must survive a slow cloud publish. */
+  mirrorPublishedShop(shopId: string, published: ShopData): { success: boolean; error?: string } {
+    try {
+      const shops = this.getAllShops();
+      const current = shops[shopId];
+      shops[shopId] = {
+        ...current,
+        draft: current?.draft ?? JSON.parse(JSON.stringify(published)),
+        published: JSON.parse(JSON.stringify(published)),
+      };
+      localStorage.setItem(STORAGE_KEY_SHOPS, JSON.stringify(shops));
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
+
   publishShop(shopId: string): { success: boolean; error?: string } {
     const record = this.getShop(shopId);
     if (!record) {
@@ -184,7 +206,7 @@ export const StorageService = {
       return { success: false, error: 'Tên quán không được để trống!' };
     }
 
-    const visibleItems = draft.items.filter((item) => item.status !== 'hidden');
+    const visibleItems = getPublicMenuItems(draft.items);
     if (visibleItems.length === 0) {
       return {
         success: false,
@@ -197,6 +219,7 @@ export const StorageService = {
         ...JSON.parse(JSON.stringify(draft)),
         publishedAt: new Date().toISOString(),
       };
+      publishedData.items = getPublicMenuItems(publishedData.items);
 
       const shops = this.getAllShops();
       shops[shopId] = {
@@ -219,96 +242,4 @@ export const StorageService = {
     }
   },
 
-  resetDemoShop(shopId = DEMO_SHOP_ID): { success: boolean; data: ShopData; error?: string } {
-    try {
-      const shops = this.getAllShops();
-      const freshData = JSON.parse(JSON.stringify(INITIAL_DEMO_DATA));
-      freshData.shop.id = shopId;
-      freshData.publishedAt = new Date().toISOString();
-
-      shops[shopId] = {
-        draft: freshData,
-        published: JSON.parse(JSON.stringify(freshData)),
-      };
-
-      localStorage.setItem(STORAGE_KEY_SHOPS, JSON.stringify(shops));
-      return { success: true, data: freshData };
-    } catch (err: any) {
-      return { success: false, data: INITIAL_DEMO_DATA, error: err?.message };
-    }
-  },
-
-  createNewShop(
-    shopSettings: {
-      name: string;
-      tagline?: string;
-      description?: string;
-      address?: string;
-      phone?: string;
-      themeColor?: string;
-    },
-    useTemplate = false
-  ): { shopId: string; user: UserProfile } {
-    // Generate permanent fixed slug
-    const cleanSlug = shopSettings.name
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[đĐ]/g, 'd')
-      .replace(/[^a-z0-9]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-      .slice(0, 24);
-
-    const randomSuffix = Math.random().toString(36).substring(2, 6);
-    const shopId = (cleanSlug || 'quan') + '-' + randomSuffix;
-
-    const baseData: ShopData = useTemplate
-      ? JSON.parse(JSON.stringify(INITIAL_DEMO_DATA))
-      : {
-          shop: {
-            id: shopId,
-            name: shopSettings.name,
-            tagline: shopSettings.tagline || '',
-            description: shopSettings.description || '',
-            address: shopSettings.address || '',
-            phone: shopSettings.phone || '',
-            themeColor: shopSettings.themeColor || '#1B4D3E',
-          },
-          categories: [
-            { id: 'cat-new-1', name: 'Món ăn', order: 1 },
-            { id: 'cat-new-2', name: 'Đồ uống', order: 2 },
-          ],
-          items: [],
-          publishedAt: undefined,
-        };
-
-    baseData.shop.id = shopId;
-    baseData.shop.name = shopSettings.name;
-    if (shopSettings.tagline) baseData.shop.tagline = shopSettings.tagline;
-    if (shopSettings.description) baseData.shop.description = shopSettings.description;
-    if (shopSettings.address) baseData.shop.address = shopSettings.address;
-    if (shopSettings.phone) baseData.shop.phone = shopSettings.phone;
-    if (shopSettings.themeColor) baseData.shop.themeColor = shopSettings.themeColor;
-
-    const shops = this.getAllShops();
-    shops[shopId] = {
-      draft: baseData,
-      published: useTemplate ? JSON.parse(JSON.stringify(baseData)) : null,
-    };
-
-    localStorage.setItem(STORAGE_KEY_SHOPS, JSON.stringify(shops));
-
-    // Simulated user
-    const newUser: UserProfile = {
-      id: 'user-' + shopId,
-      displayName: `Chủ quán ${shopSettings.name}`,
-      email: `${shopId}@demo.vn`,
-      shopId: shopId,
-    };
-
-    this.setCurrentUser(newUser);
-
-    return { shopId, user: newUser };
-  },
 };

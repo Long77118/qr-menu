@@ -1,0 +1,56 @@
+/* A compact botanical masthead. The image geometry is shared across guest surfaces. */
+.guest-menu-page .guest-menu-hero{position:relative;display:block;container-type:inline-size;isolation:isolate;padding:14px 0 18px}
+.guest-menu-page .guest-menu-hero::before{content:'';position:absolute;inset:0 calc(-1 * max(18px,(100vw - 1120px)/2));height:72%;background:#e6dcf1;z-index:-1;pointer-events:none}
+.guest-menu-shape-defs{position:absolute;width:0;height:0;overflow:hidden}
+.guest-menu-page .guest-menu-identity{position:relative;padding:0;margin:0;min-width:0}
+.guest-menu-page .guest-menu-identity-top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+.guest-menu-brandmark{display:flex;align-items:center;gap:8px}
+.guest-menu-brandmark>span{font:500 10px var(--font-body);color:#675e73;letter-spacing:.04em}
+.guest-menu-page .guest-menu-logo{display:grid;place-items:center;width:30px;height:30px;flex-shrink:0;border:0;border-radius:9px;overflow:hidden;background:transparent;font:italic 500 26px var(--font-display);color:#163e37}
+.guest-menu-page .guest-menu-logo img{display:block;width:100%;height:100%;object-fit:contain}
+.guest-menu-page .guest-menu-count{font:500 10px var(--font-body);color:#675e73;white-space:nowrap;margin:0;padding:0}
+.guest-menu-title-row{position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(130px,21%);align-items:end;gap:24px}
+.guest-menu-heading-copy{position:relative;z-index:2;min-width:0;padding:0 0 10px}
+.guest-menu-page .guest-menu-identity h1{font:500 clamp(46px,calc((100cqw - 240px)/var(--menu-name-units)),112px)/.88 var(--font-display);letter-spacing:-.065em;color:#163e37;margin:0;max-width:none;overflow-wrap:anywhere}
+.guest-menu-page .guest-menu-identity h1 span{display:block;padding-bottom:.06em}
+.guest-menu-page .guest-menu-identity h1 i{font-style:italic;color:#7952b5;font-weight:450}
+.guest-menu-page .guest-menu-tagline{font:500 11px/1.6 var(--font-body);letter-spacing:.08em;color:#71617f;margin:12px 0 0;max-width:56ch;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.guest-menu-title-portrait{position:relative;width:100%;aspect-ratio:1/1.65;max-height:220px;overflow:hidden;border-radius:140px 140px 8px 8px;align-self:stretch;transform:rotate(-2deg);background:#d6c8e2}
+.guest-menu-title-portrait img{display:block;width:100%;height:100%;object-fit:cover;object-position:center}
+.guest-menu-title-botanical{position:absolute;right:19%;top:-12px;width:170px;height:200px;transform:rotate(-16deg);color:#a989c1;opacity:.22;pointer-events:none}
+.guest-menu-hero[data-has-portrait=false] .guest-menu-title-row{grid-template-columns:1fr}
+.guest-menu-hero[data-has-portrait=false] .guest-menu-title-botanical{right:0}
+.guest-menu-cover-composition{position:relative;margin-top:0;padding:0}
+.guest-menu-page .guest-menu-hero-photo{position:relative;width:100%;height:auto;aspect-ratio:2.8/1;overflow:hidden;grid-column:auto;grid-row:auto;border-radius:0;background:#d7c9e2;isolation:isolate}
+.guest-menu-page .guest-menu-hero-photo>img{display:block;height:100%;width:100%;object-fit:cover}
+.guest-menu-page .guest-menu-hero-fallback{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;width:100%;height:100%;background:#d7c9e2;color:#5b6e60;font:italic 450 24px var(--font-display)}
+.guest-menu-hero-fallback svg{width:36px;height:36px;stroke-width:1}
+.guest-menu-page .guest-menu-contact{position:relative;display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:0 20px;margin:-12px 0 0;padding:12px 24px 0;border:0;border-radius:0 0 24px 24px;background:#163e37;color:#fffaf3;overflow:hidden}
+.guest-menu-page .guest-menu-contact a{position:relative;display:flex;align-items:center;gap:7px;max-width:100%;min-height:44px;font:500 11px/1.4 var(--font-body);color:#fffaf3;text-decoration:none}
+.guest-menu-page .guest-menu-contact a span{min-width:0;overflow-wrap:anywhere}
+.guest-menu-page .guest-menu-contact svg:not(.menu-botanical){width:13px;height:13px;flex-shrink:0;stroke-width:1.5;color:#d8cae8}
+.guest-menu-contact-botanical{position:absolute;right:-10px;bottom:-20px;width:90px;height:110px;color:#d8cae8;opacity:.2;pointer-events:none}
+.guest-menu-page .guest-menu-about{margin:0;font-size:11px;color:#657063}
+.guest-menu-page .guest-menu-about summary{min-height:44px;padding:12px 2px;cursor:pointer}
+.guest-menu-page .guest-menu-about p{max-width:65ch;line-height:1.8;white-space:pre-line;margin:0 0 12px;overflow-wrap:anywhere}
+@media(max-width:760px){
+ .guest-menu-page .guest-menu-hero{padding:10px 0 10px}
+ .guest-menu-page .guest-menu-identity-top{margin-bottom:8px;gap:8px}
+ .guest-menu-page .guest-menu-logo{width:25px;height:25px;font-size:22px}
+ .guest-menu-brandmark>span{font-size:9px}
+ .guest-menu-page .guest-menu-count{font-size:9px}
+ .guest-menu-title-row{grid-template-columns:minmax(0,1fr) 24%;gap:10px;align-items:end}
+ .guest-menu-heading-copy{padding-bottom:5px}
+ .guest-menu-page .guest-menu-identity h1{font-size:clamp(27px,calc((100cqw - 102px)/var(--menu-name-units)),76px);line-height:.92;letter-spacing:-.06em}
+ .guest-menu-page .guest-menu-hero[data-long-name=true] h1{font-size:clamp(24px,calc((100cqw - 102px)/var(--menu-name-units)),48px);letter-spacing:-.045em}
+ .guest-menu-page .guest-menu-tagline{font-size:9px;line-height:1.5;letter-spacing:.04em;margin-top:7px;max-width:42ch}
+ .guest-menu-title-portrait{max-height:154px;border-radius:70px 70px 6px 6px;aspect-ratio:1/1.8}
+ .guest-menu-title-botanical{right:19%;top:-6px;width:104px;height:134px}
+ .guest-menu-page .guest-menu-hero-photo{aspect-ratio:1.8/1}
+ .guest-menu-page .guest-menu-contact{justify-content:flex-start;margin-top:-8px;padding:8px 12px 0;gap:0 12px;border-radius:0 0 18px 18px}
+ .guest-menu-page .guest-menu-contact a{font-size:10px;gap:6px}
+ .guest-menu-page .guest-menu-contact a:first-of-type{flex:1 1 160px}
+ .guest-menu-page .guest-menu-contact a[href^="tel:"]{flex:0 1 auto}
+ .guest-menu-page .guest-menu-contact svg:not(.menu-botanical){width:12px;height:12px}
+ .guest-menu-page .guest-menu-about summary{font-size:10px}
+}

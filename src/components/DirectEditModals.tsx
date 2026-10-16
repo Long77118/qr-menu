@@ -35,20 +35,20 @@ export const EditShopNameModal: React.FC<EditShopNameModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
-      <div className="bg-white w-full max-w-sm rounded-[28px] shadow-2xl overflow-hidden border border-[#EFE5D9]">
-        <div className="p-5 border-b border-[#EFE5D9] flex items-center justify-between bg-[#FFF9F3]">
+      <div className="bg-[#FFFCF7] w-full max-w-sm rounded-[28px] shadow-2xl overflow-hidden border border-[#E2D8CF]">
+        <div className="p-5 border-b border-[#E2D8CF] flex items-center justify-between bg-[#F4ECDF]">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-[#E5F76A] text-[#241E35] flex items-center justify-center font-bold">
-              <Edit3 className="w-4 h-4 text-[#FF5A36]" />
+            <div className="w-8 h-8 rounded-xl bg-[#E0F1E9] text-[#163E37] flex items-center justify-center font-bold">
+              <Edit3 className="w-4 h-4 text-[#7054AE]" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-[#241E35]">Chỉnh sửa tên quán</h3>
-              <p className="text-[11px] text-[#6E6779]">Cập nhật tiêu đề poster menu</p>
+              <h3 className="text-sm font-semibold text-[#163E37]">Chỉnh sửa tên quán</h3>
+              <p className="text-[11px] text-[#746E79]">Cập nhật tiêu đề poster menu</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg text-[#6E6779] hover:bg-[#FFF0EB] flex items-center justify-center"
+            className="w-8 h-8 rounded-lg text-[#746E79] hover:bg-[#ECE4F7] flex items-center justify-center"
           >
             <X className="w-4 h-4" />
           </button>
@@ -62,8 +62,8 @@ export const EditShopNameModal: React.FC<EditShopNameModalProps> = ({
           )}
 
           <div>
-            <label className="block font-bold text-[#241E35] mb-1">
-              Tên quán <span className="text-[#FF5A36]">*</span>
+            <label className="block font-bold text-[#163E37] mb-1">
+              Tên quán <span className="text-[#7054AE]">*</span>
             </label>
             <input
               type="text"
@@ -74,12 +74,12 @@ export const EditShopNameModal: React.FC<EditShopNameModalProps> = ({
               }}
               placeholder="VD: Bếp & Cà phê Mộc"
               autoFocus
-              className="w-full min-h-[42px] px-3.5 py-2 rounded-xl border border-[#EFE5D9] focus:outline-hidden focus:border-[#FF5A36] focus:ring-2 focus:ring-[#FF5A36]/20 text-sm font-bold text-[#241E35]"
+              className="w-full min-h-[42px] px-3.5 py-2 rounded-xl border border-[#E2D8CF] focus:outline-hidden focus:border-[#7054AE] focus:ring-2 focus:ring-[#7054AE]/20 text-sm font-bold text-[#163E37]"
             />
           </div>
 
           <div>
-            <label className="block font-bold text-[#241E35] mb-1">
+            <label className="block font-bold text-[#163E37] mb-1">
               Khẩu hiệu / Giới thiệu ngắn
             </label>
             <input
@@ -87,21 +87,21 @@ export const EditShopNameModal: React.FC<EditShopNameModalProps> = ({
               value={tagline}
               onChange={(e) => setTagline(e.target.value)}
               placeholder="VD: Hương vị mộc mạc — Đậm đà tình thân"
-              className="w-full min-h-[42px] px-3.5 py-2 rounded-xl border border-[#EFE5D9] focus:outline-hidden focus:border-[#FF5A36] text-xs text-[#241E35]"
+              className="w-full min-h-[42px] px-3.5 py-2 rounded-xl border border-[#E2D8CF] focus:outline-hidden focus:border-[#7054AE] text-xs text-[#163E37]"
             />
           </div>
 
-          <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#EFE5D9]">
+          <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#E2D8CF]">
             <button
               type="button"
               onClick={onClose}
-              className="min-h-[38px] px-4 py-2 rounded-xl text-[#6E6779] hover:bg-[#FFF9F3] font-semibold"
+              className="min-h-[38px] px-4 py-2 rounded-xl text-[#746E79] hover:bg-[#F4ECDF] font-semibold"
             >
               Hủy
             </button>
             <button
               type="submit"
-              className="min-h-[38px] px-5 py-2 rounded-xl bg-[#FF5A36] text-white font-black hover:bg-[#E6431F] transition-colors shadow-xs"
+              className="min-h-[38px] px-5 py-2 rounded-xl bg-[#7054AE] text-white font-semibold hover:bg-[#624598] transition-colors shadow-xs"
             >
               Xác nhận
             </button>
@@ -209,20 +209,20 @@ export const EditItemPriceModal: React.FC<EditItemPriceModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
-      <div className="bg-white w-full max-w-md rounded-[28px] shadow-2xl overflow-hidden border border-[#EFE5D9]">
-        <div className="p-5 border-b border-[#EFE5D9] flex items-center justify-between bg-[#FFF9F3]">
+      <div className="bg-[#FFFCF7] w-full max-w-md rounded-[28px] shadow-2xl overflow-hidden border border-[#E2D8CF]">
+        <div className="p-5 border-b border-[#E2D8CF] flex items-center justify-between bg-[#F4ECDF]">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-[#E5F76A] text-[#241E35] flex items-center justify-center font-bold">
-              <DollarSign className="w-4 h-4 text-[#FF5A36]" />
+            <div className="w-8 h-8 rounded-xl bg-[#E0F1E9] text-[#163E37] flex items-center justify-center font-bold">
+              <DollarSign className="w-4 h-4 text-[#7054AE]" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-[#241E35]">Chỉnh sửa giá món</h3>
-              <p className="text-[11px] text-[#6E6779] truncate max-w-[200px]">{item.name}</p>
+              <h3 className="text-sm font-semibold text-[#163E37]">Chỉnh sửa giá món</h3>
+              <p className="text-[11px] text-[#746E79] truncate max-w-[200px]">{item.name}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg text-[#6E6779] hover:bg-[#FFF0EB] flex items-center justify-center"
+            className="w-8 h-8 rounded-lg text-[#746E79] hover:bg-[#ECE4F7] flex items-center justify-center"
           >
             <X className="w-4 h-4" />
           </button>
@@ -237,15 +237,15 @@ export const EditItemPriceModal: React.FC<EditItemPriceModalProps> = ({
 
           {/* Pricing mode switch */}
           <div className="flex items-center justify-between">
-            <span className="font-bold text-[#241E35]">Chế độ giá:</span>
-            <div className="inline-flex rounded-xl p-0.5 bg-[#FFF9F3] border border-[#EFE5D9]">
+            <span className="font-bold text-[#163E37]">Chế độ giá:</span>
+            <div className="inline-flex rounded-xl p-0.5 bg-[#F4ECDF] border border-[#E2D8CF]">
               <button
                 type="button"
                 onClick={() => setPricingMode('single')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                   pricingMode === 'single'
-                    ? 'bg-white text-[#FF5A36] shadow-xs'
-                    : 'text-[#6E6779] hover:text-[#241E35]'
+                    ? 'bg-[#FFFCF7] text-[#7054AE] shadow-xs'
+                    : 'text-[#746E79] hover:text-[#163E37]'
                 }`}
               >
                 Một giá
@@ -255,8 +255,8 @@ export const EditItemPriceModal: React.FC<EditItemPriceModalProps> = ({
                 onClick={() => setPricingMode('multiple')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                   pricingMode === 'multiple'
-                    ? 'bg-white text-[#FF5A36] shadow-xs'
-                    : 'text-[#6E6779] hover:text-[#241E35]'
+                    ? 'bg-[#FFFCF7] text-[#7054AE] shadow-xs'
+                    : 'text-[#746E79] hover:text-[#163E37]'
                 }`}
               >
                 Nhiều lựa chọn
@@ -265,8 +265,8 @@ export const EditItemPriceModal: React.FC<EditItemPriceModalProps> = ({
           </div>
 
           {pricingMode === 'single' ? (
-            <div className="bg-[#FFF9F3] p-4 rounded-2xl border border-[#EFE5D9]">
-              <label className="block text-xs font-bold text-[#241E35] mb-1.5">
+            <div className="bg-[#F4ECDF] p-4 rounded-2xl border border-[#E2D8CF]">
+              <label className="block text-xs font-bold text-[#163E37] mb-1.5">
                 Đơn giá bán (VNĐ)
               </label>
               <div className="relative">
@@ -280,21 +280,21 @@ export const EditItemPriceModal: React.FC<EditItemPriceModalProps> = ({
                   }}
                   autoFocus
                   placeholder="VD: 45000"
-                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#EFE5D9] text-base font-bold text-[#241E35] pr-20 bg-white"
+                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#E2D8CF] text-base font-bold text-[#163E37] pr-20 bg-[#FFFCF7]"
                 />
-                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-black text-[#FF5A36]">
+                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#7054AE]">
                   {formatVND(singlePrice)}
                 </span>
               </div>
             </div>
           ) : (
-            <div className="bg-[#FFF9F3] p-3.5 rounded-2xl border border-[#EFE5D9] space-y-2.5">
-              <div className="flex items-center justify-between font-bold text-[#241E35]">
+            <div className="bg-[#F4ECDF] p-3.5 rounded-2xl border border-[#E2D8CF] space-y-2.5">
+              <div className="flex items-center justify-between font-bold text-[#163E37]">
                 <span>Các lựa chọn &amp; Giá</span>
                 <button
                   type="button"
                   onClick={handleAddOption}
-                  className="text-xs text-[#FF5A36] font-bold hover:underline inline-flex items-center gap-1"
+                  className="text-xs text-[#7054AE] font-bold hover:underline inline-flex items-center gap-1"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Thêm dòng
@@ -309,7 +309,7 @@ export const EditItemPriceModal: React.FC<EditItemPriceModalProps> = ({
                       value={opt.name}
                       onChange={(e) => handleUpdateOption(opt.id, 'name', e.target.value)}
                       placeholder={`Lựa chọn ${idx + 1}`}
-                      className="flex-1 min-h-[38px] px-3 py-1.5 rounded-xl border border-[#EFE5D9] bg-white text-xs font-medium"
+                      className="flex-1 min-h-[38px] px-3 py-1.5 rounded-xl border border-[#E2D8CF] bg-[#FFFCF7] text-xs font-medium"
                     />
                     <div className="w-32 relative">
                       <input
@@ -317,16 +317,16 @@ export const EditItemPriceModal: React.FC<EditItemPriceModalProps> = ({
                         value={opt.price ? opt.price.toString() : ''}
                         onChange={(e) => handleUpdateOption(opt.id, 'price', e.target.value)}
                         placeholder="Giá"
-                        className="w-full min-h-[38px] px-3 py-1.5 rounded-xl border border-[#EFE5D9] bg-white text-xs font-mono pr-6"
+                        className="w-full min-h-[38px] px-3 py-1.5 rounded-xl border border-[#E2D8CF] bg-[#FFFCF7] text-xs font-mono pr-6"
                       />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[#6E6779]">
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[#746E79]">
                         đ
                       </span>
                     </div>
                     <button
                       type="button"
                       onClick={() => handleRemoveOption(opt.id)}
-                      className="w-8 h-8 rounded-lg text-[#6E6779] hover:text-rose-600 flex items-center justify-center shrink-0"
+                      className="w-8 h-8 rounded-lg text-[#746E79] hover:text-rose-600 flex items-center justify-center shrink-0"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -336,17 +336,17 @@ export const EditItemPriceModal: React.FC<EditItemPriceModalProps> = ({
             </div>
           )}
 
-          <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#EFE5D9]">
+          <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#E2D8CF]">
             <button
               type="button"
               onClick={onClose}
-              className="min-h-[38px] px-4 py-2 rounded-xl text-[#6E6779] hover:bg-[#FFF9F3] font-semibold"
+              className="min-h-[38px] px-4 py-2 rounded-xl text-[#746E79] hover:bg-[#F4ECDF] font-semibold"
             >
               Hủy
             </button>
             <button
               type="submit"
-              className="min-h-[38px] px-5 py-2 rounded-xl bg-[#FF5A36] text-white font-black hover:bg-[#E6431F] transition-colors shadow-xs"
+              className="min-h-[38px] px-5 py-2 rounded-xl bg-[#7054AE] text-white font-semibold hover:bg-[#624598] transition-colors shadow-xs"
             >
               Xác nhận
             </button>
@@ -392,20 +392,20 @@ export const EditItemTitleModal: React.FC<EditItemTitleModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
-      <div className="bg-white w-full max-w-sm rounded-[28px] shadow-2xl overflow-hidden border border-[#EFE5D9]">
-        <div className="p-5 border-b border-[#EFE5D9] flex items-center justify-between bg-[#FFF9F3]">
+      <div className="bg-[#FFFCF7] w-full max-w-sm rounded-[28px] shadow-2xl overflow-hidden border border-[#E2D8CF]">
+        <div className="p-5 border-b border-[#E2D8CF] flex items-center justify-between bg-[#F4ECDF]">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-[#E5F76A] text-[#241E35] flex items-center justify-center font-bold">
-              <Edit3 className="w-4 h-4 text-[#FF5A36]" />
+            <div className="w-8 h-8 rounded-xl bg-[#E0F1E9] text-[#163E37] flex items-center justify-center font-bold">
+              <Edit3 className="w-4 h-4 text-[#7054AE]" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-[#241E35]">Chỉnh sửa tên món</h3>
-              <p className="text-[11px] text-[#6E6779]">Cập nhật tiêu đề và mô tả nhanh</p>
+              <h3 className="text-sm font-semibold text-[#163E37]">Chỉnh sửa tên món</h3>
+              <p className="text-[11px] text-[#746E79]">Cập nhật tiêu đề và mô tả nhanh</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg text-[#6E6779] hover:bg-[#FFF0EB] flex items-center justify-center"
+            className="w-8 h-8 rounded-lg text-[#746E79] hover:bg-[#ECE4F7] flex items-center justify-center"
           >
             <X className="w-4 h-4" />
           </button>
@@ -419,8 +419,8 @@ export const EditItemTitleModal: React.FC<EditItemTitleModalProps> = ({
           )}
 
           <div>
-            <label className="block font-bold text-[#241E35] mb-1">
-              Tên món ăn / đồ uống <span className="text-[#FF5A36]">*</span>
+            <label className="block font-bold text-[#163E37] mb-1">
+              Tên món ăn / đồ uống <span className="text-[#7054AE]">*</span>
             </label>
             <input
               type="text"
@@ -430,31 +430,31 @@ export const EditItemTitleModal: React.FC<EditItemTitleModalProps> = ({
                 setError(null);
               }}
               autoFocus
-              className="w-full min-h-[42px] px-3.5 py-2 rounded-xl border border-[#EFE5D9] focus:outline-hidden focus:border-[#FF5A36] text-sm font-bold text-[#241E35]"
+              className="w-full min-h-[42px] px-3.5 py-2 rounded-xl border border-[#E2D8CF] focus:outline-hidden focus:border-[#7054AE] text-sm font-bold text-[#163E37]"
             />
           </div>
 
           <div>
-            <label className="block font-bold text-[#241E35] mb-1">Mô tả ngắn</label>
+            <label className="block font-bold text-[#163E37] mb-1">Mô tả ngắn</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
-              className="w-full p-3 rounded-xl border border-[#EFE5D9] focus:outline-hidden focus:border-[#FF5A36] text-xs text-[#241E35] resize-none"
+              className="w-full p-3 rounded-xl border border-[#E2D8CF] focus:outline-hidden focus:border-[#7054AE] text-xs text-[#163E37] resize-none"
             />
           </div>
 
-          <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#EFE5D9]">
+          <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#E2D8CF]">
             <button
               type="button"
               onClick={onClose}
-              className="min-h-[38px] px-4 py-2 rounded-xl text-[#6E6779] hover:bg-[#FFF9F3] font-semibold"
+              className="min-h-[38px] px-4 py-2 rounded-xl text-[#746E79] hover:bg-[#F4ECDF] font-semibold"
             >
               Hủy
             </button>
             <button
               type="submit"
-              className="min-h-[38px] px-5 py-2 rounded-xl bg-[#FF5A36] text-white font-black hover:bg-[#E6431F] transition-colors shadow-xs"
+              className="min-h-[38px] px-5 py-2 rounded-xl bg-[#7054AE] text-white font-semibold hover:bg-[#624598] transition-colors shadow-xs"
             >
               Xác nhận
             </button>
@@ -511,26 +511,27 @@ export const ChangeImageModal: React.FC<ChangeImageModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
-      <div className="bg-white w-full max-w-sm rounded-[28px] shadow-2xl overflow-hidden border border-[#EFE5D9]">
-        <div className="p-5 border-b border-[#EFE5D9] flex items-center justify-between bg-[#FFF9F3]">
+      <div className="bg-[#FFFCF7] w-full max-w-sm rounded-[28px] shadow-2xl overflow-hidden border border-[#E2D8CF]">
+        <div className="p-5 border-b border-[#E2D8CF] flex items-center justify-between bg-[#F4ECDF]">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-[#E5F76A] text-[#241E35] flex items-center justify-center font-bold">
-              <Camera className="w-4 h-4 text-[#FF5A36]" />
+            <div className="w-8 h-8 rounded-xl bg-[#E0F1E9] text-[#163E37] flex items-center justify-center font-bold">
+              <Camera className="w-4 h-4 text-[#7054AE]" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-[#241E35]">{title}</h3>
-              <p className="text-[11px] text-[#6E6779]">Chọn tệp từ điện thoại / máy tính</p>
+              <h3 className="text-sm font-semibold text-[#163E37]">{title}</h3>
+              <p className="text-[11px] text-[#746E79]">Chọn tệp từ điện thoại / máy tính</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg text-[#6E6779] hover:bg-[#FFF0EB] flex items-center justify-center"
+            className="w-8 h-8 rounded-lg text-[#746E79] hover:bg-[#ECE4F7] flex items-center justify-center"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         <div className="p-5 space-y-4 text-xs">
+          <p className="text-[#746E79]">Gợi ý ảnh ngang 4:3, 1200 × 900 px cho món và danh mục; 1600 × 900 px cho ảnh bìa. Ảnh được thu nhỏ giữ nguyên tỷ lệ.</p>
           {error && (
             <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 font-medium">
               {error}
@@ -547,18 +548,18 @@ export const ChangeImageModal: React.FC<ChangeImageModalProps> = ({
 
           {preview ? (
             <div className="space-y-3">
-              <div className="w-full h-44 rounded-2xl overflow-hidden bg-black/10 border border-[#EFE5D9] relative">
+              <div className="w-full h-44 rounded-2xl overflow-hidden bg-black/10 border border-[#E2D8CF] relative">
                 <img
                   src={preview}
                   alt="Xem trước"
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain"
                 />
               </div>
               <div className="flex items-center justify-between">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="px-3 py-1.5 rounded-xl border border-[#EFE5D9] text-[#241E35] font-bold hover:bg-[#FFF9F3]"
+                  className="px-3 py-1.5 rounded-xl border border-[#E2D8CF] text-[#163E37] font-bold hover:bg-[#F4ECDF]"
                 >
                   Chọn ảnh khác
                 </button>
@@ -576,28 +577,28 @@ export const ChangeImageModal: React.FC<ChangeImageModalProps> = ({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={loading}
-              className="w-full h-36 border-2 border-dashed border-[#EFE5D9] rounded-2xl hover:border-[#FF5A36] hover:bg-[#FFF9F3] flex flex-col items-center justify-center gap-2 text-[#6E6779] transition-colors"
+              className="w-full h-36 border-2 border-dashed border-[#E2D8CF] rounded-2xl hover:border-[#7054AE] hover:bg-[#F4ECDF] flex flex-col items-center justify-center gap-2 text-[#746E79] transition-colors"
             >
-              <Upload className="w-6 h-6 text-[#FF5A36]" />
+              <Upload className="w-6 h-6 text-[#7054AE]" />
               <span className="font-bold">
                 {loading ? 'Đang nén ảnh...' : 'Nhấn để chọn ảnh từ máy'}
               </span>
-              <span className="text-[11px] text-[#6E6779]">PNG, JPG dung lượng tối đa 5MB</span>
+              <span className="text-[11px] text-[#746E79]">JPG, PNG, WebP · tối đa 5 MB</span>
             </button>
           )}
 
-          <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#EFE5D9]">
+          <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#E2D8CF]">
             <button
               type="button"
               onClick={onClose}
-              className="min-h-[38px] px-4 py-2 rounded-xl text-[#6E6779] hover:bg-[#FFF9F3] font-semibold"
+              className="min-h-[38px] px-4 py-2 rounded-xl text-[#746E79] hover:bg-[#F4ECDF] font-semibold"
             >
               Hủy
             </button>
             <button
               type="button"
               onClick={handleConfirm}
-              className="min-h-[38px] px-5 py-2 rounded-xl bg-[#FF5A36] text-white font-black hover:bg-[#E6431F] transition-colors shadow-xs"
+              className="min-h-[38px] px-5 py-2 rounded-xl bg-[#7054AE] text-white font-semibold hover:bg-[#624598] transition-colors shadow-xs"
             >
               Lưu ảnh
             </button>

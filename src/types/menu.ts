@@ -1,6 +1,14 @@
 export type MenuItemStatus = 'available' | 'out_of_stock' | 'hidden';
 export type PricingMode = 'single' | 'multiple';
 
+/** Only the matching original URL may use these resized variants. */
+export interface MenuImageSources {
+  original: string;
+  thumbnail: string;
+  card: string;
+  detail: string;
+}
+
 export interface PriceOption {
   id: string;
   name: string;
@@ -16,6 +24,7 @@ export interface MenuItem {
   options: PriceOption[]; // Used when pricingMode === 'multiple'
   description?: string;
   imageUrl?: string;
+  imageSources?: MenuImageSources;
   status: MenuItemStatus;
   order: number;
 }
@@ -25,10 +34,12 @@ export interface MenuCategory {
   name: string;
   order: number;
   imageUrl?: string;
+  imageSources?: MenuImageSources;
 }
 
 export interface HeaderBackgroundConfig {
   imageUrl?: string; // Custom background photo data URL
+  imageSources?: MenuImageSources;
   // Desktop positioning & zoom
   desktopPosition: { x: number; y: number }; // 0 to 100 percentage coordinates
   desktopZoom: number; // 1.0 to 2.5 zoom factor
@@ -50,9 +61,13 @@ export interface ShopSettings {
   tagline?: string;
   description?: string;
   address?: string;
+  countryCode?: string; // ISO 3166-1 alpha-2; absent means owner has not chosen a country.
+  discoveryImageUrl?: string; // Optimized card image, separate from the full menu header.
   phone?: string;
   logoUrl?: string;
   coverUrl?: string;
+  logoSources?: MenuImageSources;
+  coverSources?: MenuImageSources;
   themeColor: string; // Hex color code
   headerBackground?: HeaderBackgroundConfig;
 }

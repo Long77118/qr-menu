@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Sparkles,
@@ -14,16 +14,14 @@ import {
   AlertCircle,
   Loader2,
 } from 'lucide-react';
-import { StorageService } from '../services/storage';
-import { OnlineStorageService } from '../services/onlineStorage';
+import { AuthSession } from '../services/authSession';
 import { FirebaseAuthService } from '../services/firebase';
 import { UserProfile } from '../types/menu';
-import { DEMO_USER } from '../data/mockData';
 
 interface AuthModalProps {
   isOpen: boolean;
   mode: 'signup' | 'login';
-  onSuccess: (user: UserProfile) => void;
+  onSuccess: (user: UserProfile) => Promise<void>;
   onClose: () => void;
   onSwitchMode: (mode: 'signup' | 'login') => void;
 }
@@ -43,13 +41,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [useTemplate, setUseTemplate] = useState(true);
 
   // Status
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successInfo, setSuccessInfo] = useState<string | null>(null);
 
+  const retrySignup = useRef<string | null>(null);
+  useEffect(() => { if (isOpen) { setCurrentMode(initialMode); setError(null); } }, [isOpen, initialMode]);
   if (!isOpen) return null;
 
   const getFriendlyErrorMessage = (err: any): string => {
@@ -80,37 +79,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setError(null);
     setSuccessInfo(null);
     try {
-      const fbUser = await FirebaseAuthService.signInWithGoogle();
-      
-      // Check existing shops
-      const existingShops = await OnlineStorageService.getUserShops(fbUser.uid);
-      let targetShopId: string;
-
-      if (existingShops.length > 0) {
-        targetShopId = existingShops[0];
-      } else {
-        // Create initial shop for new user
-        const newShopName = shopName.trim() || `Quán của ${fbUser.displayName || 'tôi'}`;
-        const created = await OnlineStorageService.createNewShopOnline(
-          {
-            name: newShopName,
-          },
-          true // load template
-        );
-        targetShopId = created.shopId;
-      }
-
-      const userProfile: UserProfile = {
-        id: fbUser.uid,
-        displayName: fbUser.displayName || 'Chủ quán',
-        email: fbUser.email || '',
-        shopId: targetShopId,
-        isFirebaseUser: true,
-        photoUrl: fbUser.photoURL || undefined,
-      };
-
-      StorageService.setCurrentUser(userProfile);
-      onSuccess(userProfile);
+      const result = await AuthSession.run(() => FirebaseAuthService.signInWithGoogle(), { name: shopName });
+      await onSuccess(result);
     } catch (err: any) {
       setError(getFriendlyErrorMessage(err));
     } finally {
@@ -146,30 +116,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setIsLoading(true);
     setError(null);
     try {
-      const fbUser = await FirebaseAuthService.signUpWithEmail(
-        email.trim(),
-        password,
-        displayName.trim()
-      );
-
-      // Create shop online
-      const created = await OnlineStorageService.createNewShopOnline(
-        {
-          name: shopName.trim(),
-        },
-        useTemplate
-      );
-
-      const userProfile: UserProfile = {
-        id: fbUser.uid,
-        displayName: displayName.trim() || fbUser.displayName || 'Chủ quán',
-        email: fbUser.email || email.trim(),
-        shopId: created.shopId,
-        isFirebaseUser: true,
-      };
-
-      StorageService.setCurrentUser(userProfile);
-      onSuccess(userProfile);
+      const result = await AuthSession.run(async () => {
+        const active = FirebaseAuthService.getCurrentUser();
+        if (active && retrySignup.current === active.uid && active.email === email.trim()) return active;
+        const created = await FirebaseAuthService.signUpWithEmail(email.trim(), password, displayName.trim());
+        retrySignup.current = created.uid;
+        return created;
+      }, { name: shopName });
+      await onSuccess(result);
     } catch (err: any) {
       setError(getFriendlyErrorMessage(err));
     } finally {
@@ -188,40 +142,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setIsLoading(true);
     setError(null);
     try {
-      const fbUser = await FirebaseAuthService.signInWithEmail(email.trim(), password);
-
-      // Check existing shops in Firestore
-      const existingShops = await OnlineStorageService.getUserShops(fbUser.uid);
-      let targetShopId: string;
-
-      if (existingShops.length > 0) {
-        targetShopId = existingShops[0];
-      } else {
-        // Fallback or find locally
-        const local = StorageService.getCurrentUser();
-        if (local && local.id === fbUser.uid) {
-          targetShopId = local.shopId;
-        } else {
-          const created = await OnlineStorageService.createNewShopOnline(
-            {
-              name: `Quán của ${fbUser.displayName || 'tôi'}`,
-            },
-            true
-          );
-          targetShopId = created.shopId;
-        }
-      }
-
-      const userProfile: UserProfile = {
-        id: fbUser.uid,
-        displayName: fbUser.displayName || displayName.trim() || 'Chủ quán',
-        email: fbUser.email || email.trim(),
-        shopId: targetShopId,
-        isFirebaseUser: true,
-      };
-
-      StorageService.setCurrentUser(userProfile);
-      onSuccess(userProfile);
+      const result = await AuthSession.run(() => FirebaseAuthService.signInWithEmail(email.trim(), password), {});
+      await onSuccess(result);
     } catch (err: any) {
       setError(getFriendlyErrorMessage(err));
     } finally {
@@ -249,17 +171,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  // --- DEMO LOGIN FALLBACK ---
-  const handleDemoLogin = () => {
-    const user = StorageService.loginDemoUser();
-    onSuccess(user);
-  };
-
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
-      <div className="bg-white w-full max-w-md rounded-[28px] shadow-2xl overflow-hidden border border-[#EFE5D9]">
+      <div className="bg-[#FFFCF7] w-full max-w-md rounded-[28px] shadow-2xl overflow-hidden border border-[#DED2C4]">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-[#EFE5D9] flex items-center justify-between bg-[#FFF9F3]">
+        <div className="px-5 py-4 border-b border-[#DED2C4] flex items-center justify-between bg-[#F1E8DC]">
           <div>
             <h2 className="text-sm sm:text-base font-black text-[#241E35]">
               {currentMode === 'signup'
@@ -281,7 +197,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <button
             onClick={onClose}
             disabled={isLoading}
-            className="w-8 h-8 rounded-full text-[#6E6779] hover:text-[#241E35] hover:bg-white flex items-center justify-center transition-colors border border-transparent hover:border-[#EFE5D9]"
+            className="w-8 h-8 rounded-full text-[#6E6779] hover:text-[#241E35] hover:bg-[#FFFCF7] flex items-center justify-center transition-colors border border-transparent hover:border-[#DED2C4]"
           >
             <X className="w-4 h-4" />
           </button>
@@ -310,10 +226,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 type="button"
                 onClick={handleGoogleAuth}
                 disabled={isLoading}
-                className="w-full min-h-[44px] px-4 py-2.5 rounded-2xl bg-white hover:bg-slate-50 text-[#241E35] border-2 border-[#EFE5D9] hover:border-[#241E35]/20 font-black flex items-center justify-center gap-3 transition-all shadow-xs cursor-pointer disabled:opacity-60"
+                className="w-full min-h-[44px] px-4 py-2.5 rounded-2xl bg-[#FFFCF7] hover:bg-slate-50 text-[#241E35] border-2 border-[#DED2C4] hover:border-[#241E35]/20 font-black flex items-center justify-center gap-3 transition-all shadow-xs cursor-pointer disabled:opacity-60"
               >
                 {isLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-[#FF5A36]" />
+                  <Loader2 className="w-4 h-4 animate-spin text-[#7447E8]" />
                 ) : (
                   <svg className="w-4 h-4" viewBox="0 0 24 24">
                     <path
@@ -343,9 +259,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
               <div className="relative my-3 text-center">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-[#EFE5D9]"></div>
+                  <div className="w-full border-t border-[#DED2C4]"></div>
                 </div>
-                <span className="relative bg-white px-2 text-[11px] font-bold text-[#6E6779] uppercase">
+                <span className="relative bg-[#FFFCF7] px-2 text-[11px] font-bold text-[#6E6779] uppercase">
                   hoặc dùng email
                 </span>
               </div>
@@ -358,7 +274,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <form onSubmit={handleStep1Next} className="space-y-3">
                 <div>
                   <label className="block font-bold text-[#241E35] mb-1">
-                    Tên quán ăn / café của bạn <span className="text-[#FF5A36]">*</span>
+                    Tên quán ăn / café của bạn <span className="text-[#7447E8]">*</span>
                   </label>
                   <div className="relative">
                     <Store className="w-4 h-4 text-[#6E6779] absolute left-3 top-3" />
@@ -370,14 +286,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         setError(null);
                       }}
                       placeholder="VD: Cơm Tấm Sài Gòn 1985, Tiệm Trà Mùa Thu..."
-                      className="w-full min-h-[42px] pl-9.5 pr-3.5 py-2 rounded-xl border border-[#EFE5D9] focus:outline-hidden focus:border-[#FF5A36] focus:ring-2 focus:ring-[#FF5A36]/20 text-sm text-[#241E35] font-bold"
+                      className="w-full min-h-[42px] pl-9.5 pr-3.5 py-2 rounded-xl border border-[#DED2C4] focus:outline-hidden focus:border-[#7447E8] focus:ring-2 focus:ring-[#7447E8]/20 text-sm text-[#241E35] font-bold"
                     />
                   </div>
                 </div>
 
                 <div>
                   <label className="block font-bold text-[#241E35] mb-1">
-                    Tên hiển thị của bạn <span className="text-[#FF5A36]">*</span>
+                    Tên hiển thị của bạn <span className="text-[#7447E8]">*</span>
                   </label>
                   <div className="relative">
                     <User className="w-4 h-4 text-[#6E6779] absolute left-3 top-3" />
@@ -386,14 +302,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
                       placeholder="VD: Nguyễn Văn Nam (Chủ quán)"
-                      className="w-full min-h-[42px] pl-9.5 pr-3.5 py-2 rounded-xl border border-[#EFE5D9] focus:outline-hidden focus:border-[#FF5A36] focus:ring-2 focus:ring-[#FF5A36]/20 text-sm text-[#241E35] font-bold"
+                      className="w-full min-h-[42px] pl-9.5 pr-3.5 py-2 rounded-xl border border-[#DED2C4] focus:outline-hidden focus:border-[#7447E8] focus:ring-2 focus:ring-[#7447E8]/20 text-sm text-[#241E35] font-bold"
                     />
                   </div>
                 </div>
 
                 <div>
                   <label className="block font-bold text-[#241E35] mb-1">
-                    Email đăng ký <span className="text-[#FF5A36]">*</span>
+                    Email đăng ký <span className="text-[#7447E8]">*</span>
                   </label>
                   <div className="relative">
                     <Mail className="w-4 h-4 text-[#6E6779] absolute left-3 top-3" />
@@ -402,14 +318,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="VD: nam@quan.vn"
-                      className="w-full min-h-[42px] pl-9.5 pr-3.5 py-2 rounded-xl border border-[#EFE5D9] focus:outline-hidden focus:border-[#FF5A36] focus:ring-2 focus:ring-[#FF5A36]/20 text-sm text-[#241E35]"
+                      className="w-full min-h-[42px] pl-9.5 pr-3.5 py-2 rounded-xl border border-[#DED2C4] focus:outline-hidden focus:border-[#7447E8] focus:ring-2 focus:ring-[#7447E8]/20 text-sm text-[#241E35]"
                     />
                   </div>
                 </div>
 
                 <div>
                   <label className="block font-bold text-[#241E35] mb-1">
-                    Mật khẩu (tối thiểu 6 ký tự) <span className="text-[#FF5A36]">*</span>
+                    Mật khẩu (tối thiểu 6 ký tự) <span className="text-[#7447E8]">*</span>
                   </label>
                   <div className="relative">
                     <Lock className="w-4 h-4 text-[#6E6779] absolute left-3 top-3" />
@@ -418,12 +334,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full min-h-[42px] pl-9.5 pr-3.5 py-2 rounded-xl border border-[#EFE5D9] focus:outline-hidden focus:border-[#FF5A36] focus:ring-2 focus:ring-[#FF5A36]/20 text-sm text-[#241E35]"
+                      className="w-full min-h-[42px] pl-9.5 pr-3.5 py-2 rounded-xl border border-[#DED2C4] focus:outline-hidden focus:border-[#7447E8] focus:ring-2 focus:ring-[#7447E8]/20 text-sm text-[#241E35]"
                     />
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-[#EFE5D9] flex items-center justify-between">
+                <div className="pt-2 border-t border-[#DED2C4] flex items-center justify-between">
                   <button
                     type="button"
                     onClick={() => {
@@ -431,13 +347,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       onSwitchMode('login');
                       setError(null);
                     }}
-                    className="text-[#FF5A36] hover:underline font-bold"
+                    className="text-[#7447E8] hover:underline font-bold"
                   >
                     Đã có tài khoản? Đăng nhập
                   </button>
                   <button
                     type="submit"
-                    className="min-h-[40px] px-5 py-2 rounded-2xl bg-[#FF5A36] text-white font-black hover:bg-[#E6431F] transition-colors shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+                    className="min-h-[40px] px-5 py-2 rounded-2xl bg-[#7447E8] text-white font-black hover:bg-[#6035CF] transition-colors shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>Tiếp tục bước 2</span>
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -447,47 +363,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             ) : (
               /* Step 2: Menu Strategy */
               <form onSubmit={handleCompleteEmailSignup} className="space-y-4">
-                <div>
-                  <label className="block font-bold text-[#241E35] mb-2">
-                    Lựa chọn khởi đầu menu cho {shopName}
-                  </label>
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <button
-                      type="button"
-                      onClick={() => setUseTemplate(true)}
-                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
-                        useTemplate
-                          ? 'border-[#FF5A36] bg-[#FFF0EB] ring-2 ring-[#FF5A36]'
-                          : 'border-[#EFE5D9] hover:bg-[#FFF9F3]'
-                      }`}
-                    >
-                      <div className="font-bold text-xs text-[#241E35] flex items-center gap-1">
-                        <span>Nạp menu mẫu</span>
-                        <Sparkles className="w-3 h-3 text-[#FF5A36]" />
-                      </div>
-                      <div className="text-[11px] text-[#6E6779] mt-1 leading-snug">
-                        Có sẵn món &amp; giá mẫu để chỉnh sửa nhanh
-                      </div>
-                    </button>
+                <p className="rounded-2xl bg-[#ECE4F7] p-4 text-sm">Quán của bạn sẽ bắt đầu với menu trống. Thêm danh mục và món của quán sau khi hoàn tất đăng ký.</p>
 
-                    <button
-                      type="button"
-                      onClick={() => setUseTemplate(false)}
-                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
-                        !useTemplate
-                          ? 'border-[#FF5A36] bg-[#FFF0EB] ring-2 ring-[#FF5A36]'
-                          : 'border-[#EFE5D9] hover:bg-[#FFF9F3]'
-                      }`}
-                    >
-                      <div className="font-bold text-xs text-[#241E35]">Bắt đầu menu trống</div>
-                      <div className="text-[11px] text-[#6E6779] mt-1 leading-snug">
-                        Tự tạo từng nhóm và món từ đầu
-                      </div>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="pt-3 border-t border-[#EFE5D9] flex items-center justify-between">
+                <div className="pt-3 border-t border-[#DED2C4] flex items-center justify-between">
                   <button
                     type="button"
                     onClick={() => setSignupStep(1)}
@@ -501,7 +379,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="min-h-[40px] px-5 py-2 rounded-2xl bg-[#FF5A36] text-white font-black hover:bg-[#E6431F] transition-colors shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-60"
+                    className="min-h-[40px] px-5 py-2 rounded-2xl bg-[#7447E8] text-white font-black hover:bg-[#6035CF] transition-colors shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-60"
                   >
                     {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
                     <span>Hoàn tất &amp; Lưu Online</span>
@@ -529,7 +407,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     }}
                     placeholder="VD: nam@quan.vn"
                     required
-                    className="w-full min-h-[42px] pl-9.5 pr-3.5 py-2 rounded-xl border border-[#EFE5D9] focus:outline-hidden focus:border-[#FF5A36] focus:ring-2 focus:ring-[#FF5A36]/20 text-sm text-[#241E35]"
+                    className="w-full min-h-[42px] pl-9.5 pr-3.5 py-2 rounded-xl border border-[#DED2C4] focus:outline-hidden focus:border-[#7447E8] focus:ring-2 focus:ring-[#7447E8]/20 text-sm text-[#241E35]"
                   />
                 </div>
               </div>
@@ -546,7 +424,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       setError(null);
                       setSuccessInfo(null);
                     }}
-                    className="text-[11px] text-[#FF5A36] hover:underline font-bold"
+                    className="text-[11px] text-[#7447E8] hover:underline font-bold"
                   >
                     Quên mật khẩu?
                   </button>
@@ -562,7 +440,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     }}
                     placeholder="••••••••"
                     required
-                    className="w-full min-h-[42px] pl-9.5 pr-3.5 py-2 rounded-xl border border-[#EFE5D9] focus:outline-hidden focus:border-[#FF5A36] focus:ring-2 focus:ring-[#FF5A36]/20 text-sm text-[#241E35]"
+                    className="w-full min-h-[42px] pl-9.5 pr-3.5 py-2 rounded-xl border border-[#DED2C4] focus:outline-hidden focus:border-[#7447E8] focus:ring-2 focus:ring-[#7447E8]/20 text-sm text-[#241E35]"
                   />
                 </div>
               </div>
@@ -570,13 +448,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full min-h-[42px] px-4 py-2 rounded-2xl bg-[#FF5A36] text-white font-black hover:bg-[#E6431F] transition-colors shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                className="w-full min-h-[42px] px-4 py-2 rounded-2xl bg-[#7447E8] text-white font-black hover:bg-[#6035CF] transition-colors shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
               >
                 {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
                 <span>Đăng nhập vào quán</span>
               </button>
 
-              <div className="pt-2 border-t border-[#EFE5D9] flex items-center justify-between">
+              <div className="pt-2 border-t border-[#DED2C4] flex items-center justify-between">
                 <button
                   type="button"
                   onClick={() => {
@@ -584,16 +462,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     onSwitchMode('signup');
                     setError(null);
                   }}
-                  className="text-[#FF5A36] hover:underline font-bold"
+                  className="text-[#7447E8] hover:underline font-bold"
                 >
                   Chưa có tài khoản? Đăng ký ngay
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDemoLogin}
-                  className="text-[#6E6779] hover:text-[#241E35] font-bold hover:underline"
-                >
-                  Vào thử quán mẫu
                 </button>
               </div>
             </form>
@@ -614,7 +485,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="VD: nam@quan.vn"
                     required
-                    className="w-full min-h-[42px] pl-9.5 pr-3.5 py-2 rounded-xl border border-[#EFE5D9] focus:outline-hidden focus:border-[#FF5A36] focus:ring-2 focus:ring-[#FF5A36]/20 text-sm text-[#241E35]"
+                    className="w-full min-h-[42px] pl-9.5 pr-3.5 py-2 rounded-xl border border-[#DED2C4] focus:outline-hidden focus:border-[#7447E8] focus:ring-2 focus:ring-[#7447E8]/20 text-sm text-[#241E35]"
                   />
                 </div>
               </div>
@@ -622,13 +493,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full min-h-[42px] px-4 py-2 rounded-2xl bg-[#FF5A36] text-white font-black hover:bg-[#E6431F] transition-colors shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                className="w-full min-h-[42px] px-4 py-2 rounded-2xl bg-[#7447E8] text-white font-black hover:bg-[#6035CF] transition-colors shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
               >
                 {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
                 <span>Gửi liên kết đặt lại mật khẩu</span>
               </button>
 
-              <div className="pt-2 border-t border-[#EFE5D9] text-center">
+              <div className="pt-2 border-t border-[#DED2C4] text-center">
                 <button
                   type="button"
                   onClick={() => {
@@ -636,7 +507,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     setError(null);
                     setSuccessInfo(null);
                   }}
-                  className="text-[#FF5A36] hover:underline font-bold inline-flex items-center gap-1"
+                  className="text-[#7447E8] hover:underline font-bold inline-flex items-center gap-1"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
                   <span>Quay lại đăng nhập</span>
@@ -645,13 +516,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </form>
           )}
 
-          {/* Bottom Demo helper notice */}
-          <div className="p-3 bg-[#FFF9F3] rounded-2xl border border-[#EFE5D9] text-[#6E6779] flex items-start gap-2.5">
-            <Info className="w-4 h-4 text-[#FF5A36] shrink-0 mt-0.5" />
-            <div className="leading-relaxed text-[11px]">
-              Tài khoản được bảo vệ bởi <strong>Firebase Authentication &amp; Firestore Security Rules</strong>. Dữ liệu thực đơn được lưu trữ an toàn và đồng bộ tức thời giữa các thiết bị.
-            </div>
-          </div>
         </div>
       </div>
     </div>

@@ -18,10 +18,11 @@ import { ShopSettings } from '../types/menu';
 
 interface QRViewProps {
   shop: ShopSettings;
+  isFirebaseUser?: boolean;
   onOpenGuestView: (shopId: string) => void;
 }
 
-export const QRView: React.FC<QRViewProps> = ({ shop, onOpenGuestView }) => {
+export const QRView: React.FC<QRViewProps> = ({ shop, onOpenGuestView, isFirebaseUser = false }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [copied, setCopied] = useState(false);
   const [qrGenerated, setQrGenerated] = useState(false);
@@ -80,10 +81,16 @@ export const QRView: React.FC<QRViewProps> = ({ shop, onOpenGuestView }) => {
     }
   };
 
-  const handleDownloadPNG = () => {
+  const handleDownloadPNG = async () => {
     if (!canvasRef.current) return;
     try {
       const srcCanvas = canvasRef.current;
+      // Canvas export uses the same locally hosted typefaces as the app.
+      if (document.fonts) await Promise.all([
+        document.fonts.load('700 22px "Fraunces"', shop.name),
+        document.fonts.load('700 13px "Nunito Sans"', 'QUÉT MÃ XEM THỰC ĐƠN ĐIỆN TỬ'),
+        document.fonts.load('400 11px "Nunito Sans"', 'Không cần tải ứng dụng · Cập nhật món mới nhất'),
+      ]).catch(() => undefined);
       const downloadCanvas = document.createElement('canvas');
       const padding = 40;
       const textHeight = 84;
@@ -99,24 +106,24 @@ export const QRView: React.FC<QRViewProps> = ({ shop, onOpenGuestView }) => {
 
       // Draw subtle border card for table standee printout
       ctx.lineWidth = 4;
-      ctx.strokeStyle = '#EFE5D9';
+      ctx.strokeStyle = '#E2D8CF';
       ctx.strokeRect(10, 10, downloadCanvas.width - 20, downloadCanvas.height - 20);
 
       // Draw QR in center
       ctx.drawImage(srcCanvas, padding, padding);
 
       // Shop Name and instructions
-      ctx.fillStyle = '#241E35';
-      ctx.font = 'bold 22px "Be Vietnam Pro", -apple-system, sans-serif';
+      ctx.fillStyle = '#163E37';
+      ctx.font = 'bold 22px "Fraunces", Georgia, serif';
       ctx.textAlign = 'center';
       ctx.fillText(shop.name, downloadCanvas.width / 2, srcCanvas.height + padding + 32);
 
-      ctx.fillStyle = '#FF5A36';
-      ctx.font = 'bold 13px "Be Vietnam Pro", -apple-system, sans-serif';
+      ctx.fillStyle = '#7054AE';
+      ctx.font = 'bold 13px "Nunito Sans", system-ui, sans-serif';
       ctx.fillText('QUÉT MÃ XEM THỰC ĐƠN ĐIỆN TỬ', downloadCanvas.width / 2, srcCanvas.height + padding + 56);
 
-      ctx.fillStyle = '#6E6779';
-      ctx.font = '11px "Be Vietnam Pro", -apple-system, sans-serif';
+      ctx.fillStyle = '#746E79';
+      ctx.font = '11px "Nunito Sans", system-ui, sans-serif';
       ctx.fillText('Không cần tải ứng dụng · Cập nhật món mới nhất', downloadCanvas.width / 2, srcCanvas.height + padding + 74);
 
       const link = document.createElement('a');
@@ -129,19 +136,19 @@ export const QRView: React.FC<QRViewProps> = ({ shop, onOpenGuestView }) => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="owner-qr max-w-4xl mx-auto space-y-6">
       {/* 1. Page Header */}
-      <div className="bg-white rounded-[28px] p-6 border border-[#EFE5D9] shadow-xs">
-        <div className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-[#FF5A36] mb-1">
+      <div className="bg-[#FFFCF7] rounded-[28px] p-6 border border-[#E2D8CF] shadow-xs">
+        <div className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[#7054AE] mb-1">
           <QrCode className="w-4 h-4" />
           <span>Mã QR &amp; Đường dẫn chia sẻ</span>
         </div>
-        <h2 className="text-lg sm:text-xl font-black text-[#241E35]">
+        <h2 className="text-lg sm:text-xl font-semibold text-[#163E37]">
           Mã QR xem thực đơn chính thức của quán
         </h2>
-        <p className="text-xs sm:text-sm text-[#6E6779] mt-1 leading-relaxed font-medium">
+        <p className="text-xs sm:text-sm text-[#746E79] mt-1 leading-relaxed font-medium">
           Mã QR được liên kết vĩnh viễn với mã quán{' '}
-          <code className="bg-[#FFF9F3] px-2 py-0.5 rounded-lg font-mono font-bold text-[#FF5A36] border border-[#EFE5D9]">
+          <code className="bg-[#F4ECDF] px-2 py-0.5 rounded-lg font-mono font-bold text-[#7054AE] border border-[#E2D8CF]">
             {shop.id}
           </code>
           . Bạn có thể in tem để bàn ngay hôm nay; khi thay đổi món hay giá và bấm <em>Xuất bản</em>, mã QR này vẫn hoạt động bình thường mà không cần in lại.
@@ -150,27 +157,27 @@ export const QRView: React.FC<QRViewProps> = ({ shop, onOpenGuestView }) => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
         {/* 2. QR Preview Card with Standee frame */}
-        <div className="bg-white rounded-[28px] p-6 border border-[#EFE5D9] shadow-xs flex flex-col items-center text-center">
-          <div className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-[#241E35] mb-2 bg-[#E5F76A] px-3.5 py-1 rounded-full shadow-2xs">
-            <Sparkles className="w-3.5 h-3.5 text-[#FF5A36]" />
+        <div className="bg-[#FFFCF7] rounded-[28px] p-6 border border-[#E2D8CF] shadow-xs flex flex-col items-center text-center">
+          <div className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[#163E37] mb-2 bg-[#E0F1E9] px-3.5 py-1 rounded-full shadow-2xs">
+            <Sparkles className="w-3.5 h-3.5 text-[#7054AE]" />
             <span>Bản in tiêu chuẩn để bàn</span>
           </div>
-          <div className="font-black text-[#241E35] text-xl mb-4 truncate max-w-full">
+          <div className="font-semibold text-[#163E37] text-xl mb-4 truncate max-w-full">
             {shop.name}
           </div>
 
           {/* Standee-like container */}
-          <div className="p-4 sm:p-5 bg-white border-2 border-[#EFE5D9] rounded-[24px] shadow-sm flex flex-col items-center justify-center">
+          <div className="p-4 sm:p-5 bg-[#FFFCF7] border-2 border-[#E2D8CF] rounded-[24px] shadow-sm flex flex-col items-center justify-center">
             <canvas ref={canvasRef} className="max-w-full h-auto rounded" />
-            <div className="mt-3 text-xs font-black text-[#FF5A36] tracking-wide">
+            <div className="mt-3 text-xs font-semibold text-[#7054AE] tracking-wide">
               QUÉT MÃ XEM MENU
             </div>
-            <div className="text-[10px] text-[#6E6779] font-mono mt-0.5">
+            <div className="text-[10px] text-[#746E79] font-mono mt-0.5">
               ID: {shop.id}
             </div>
           </div>
 
-          <p className="text-xs text-[#6E6779] mt-3 font-medium">
+          <p className="text-xs text-[#746E79] mt-3 font-medium">
             Mã đen trên nền trắng có lề tĩnh an toàn (Quiet Zone) đạt chuẩn quét của mọi loại camera điện thoại.
           </p>
 
@@ -179,7 +186,7 @@ export const QRView: React.FC<QRViewProps> = ({ shop, onOpenGuestView }) => {
             <button
               onClick={handleDownloadPNG}
               disabled={!qrGenerated}
-              className="w-full min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-[#FF5A36] text-white text-xs font-black hover:bg-[#E6431F] transition-all shadow-xs active:scale-[0.98] cursor-pointer"
+              className="w-full min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-[#7054AE] text-white text-xs font-semibold hover:bg-[#624598] transition-all shadow-xs active:scale-[0.98] cursor-pointer"
             >
               <Download className="w-4 h-4" />
               <span>Tải ảnh QR (PNG chuẩn in để bàn)</span>
@@ -187,9 +194,9 @@ export const QRView: React.FC<QRViewProps> = ({ shop, onOpenGuestView }) => {
 
             <button
               onClick={() => onOpenGuestView(shop.id)}
-              className="w-full min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-[#FFF9F3] border border-[#EFE5D9] text-[#241E35] text-xs font-bold hover:bg-[#E5F76A]/40 transition-colors cursor-pointer"
+              className="w-full min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-[#F4ECDF] border border-[#E2D8CF] text-[#163E37] text-xs font-bold hover:bg-[#E0F1E9]/40 transition-colors cursor-pointer"
             >
-              <ExternalLink className="w-4 h-4 text-[#FF5A36]" />
+              <ExternalLink className="w-4 h-4 text-[#7054AE]" />
               <span>Mở xem thử menu khách</span>
             </button>
           </div>
@@ -198,25 +205,25 @@ export const QRView: React.FC<QRViewProps> = ({ shop, onOpenGuestView }) => {
         {/* 3. Link Details & Practical Printing Guides */}
         <div className="space-y-4">
           {/* Guest Link Details */}
-          <div className="bg-white rounded-[28px] p-6 border border-[#EFE5D9] shadow-xs space-y-4">
+          <div className="bg-[#FFFCF7] rounded-[28px] p-6 border border-[#E2D8CF] shadow-xs space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-black uppercase tracking-wider text-[#241E35] flex items-center gap-1.5">
-                <Share2 className="w-4 h-4 text-[#FF5A36]" />
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-[#163E37] flex items-center gap-1.5">
+                <Share2 className="w-4 h-4 text-[#7054AE]" />
                 <span>Đường dẫn truy cập menu khách</span>
               </h3>
             </div>
 
-            <p className="text-xs text-[#6E6779] font-medium">
+            <p className="text-xs text-[#746E79] font-medium">
               Bạn có thể dán đường dẫn này lên Zalo, Fanpage Facebook, Google Maps hoặc gửi trực tiếp cho khách qua tin nhắn:
             </p>
 
-            <div className="p-3.5 bg-[#FFF9F3] rounded-2xl border border-[#EFE5D9] text-xs font-mono text-[#241E35] break-all select-all font-semibold">
+            <div className="p-3.5 bg-[#F4ECDF] rounded-2xl border border-[#E2D8CF] text-xs font-mono text-[#163E37] break-all select-all font-semibold">
               {guestMenuUrl}
             </div>
 
             <button
               onClick={handleCopy}
-              className="w-full min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl border border-[#EFE5D9] bg-white text-[#241E35] text-xs font-bold hover:bg-[#FFF9F3] transition-colors shadow-xs cursor-pointer"
+              className="w-full min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl border border-[#E2D8CF] bg-[#FFFCF7] text-[#163E37] text-xs font-bold hover:bg-[#F4ECDF] transition-colors shadow-xs cursor-pointer"
             >
               {copied ? (
                 <>
@@ -225,7 +232,7 @@ export const QRView: React.FC<QRViewProps> = ({ shop, onOpenGuestView }) => {
                 </>
               ) : (
                 <>
-                  <Copy className="w-4 h-4 text-[#6E6779]" />
+                  <Copy className="w-4 h-4 text-[#746E79]" />
                   <span>Sao chép đường dẫn menu</span>
                 </>
               )}
@@ -233,21 +240,21 @@ export const QRView: React.FC<QRViewProps> = ({ shop, onOpenGuestView }) => {
           </div>
 
           {/* 4. Practical Printing & Deployment Guide */}
-          <div className="bg-[#FFF9F3] border border-[#EFE5D9] rounded-[28px] p-5.5 text-xs text-[#6E6779] leading-relaxed space-y-3">
-            <div className="flex items-center gap-2 font-black text-[#241E35] text-sm">
-              <Printer className="w-4 h-4 text-[#FF5A36] shrink-0" />
+          <div className="bg-[#F4ECDF] border border-[#E2D8CF] rounded-[28px] p-5.5 text-xs text-[#746E79] leading-relaxed space-y-3">
+            <div className="flex items-center gap-2 font-semibold text-[#163E37] text-sm">
+              <Printer className="w-4 h-4 text-[#7054AE] shrink-0" />
               <span>Hướng dẫn in ấn &amp; đặt tại quán</span>
             </div>
 
             <ul className="space-y-2 font-medium">
               <li className="flex items-start gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#FF5A36] mt-1.5 shrink-0" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#7054AE] mt-1.5 shrink-0" />
                 <span>
                   <strong>Kích thước tem bàn:</strong> Khuyên dùng kích thước tối thiểu từ <strong>6x6 cm đến 8x8 cm</strong> để camera điện thoại lấy nét nhanh trong điều kiện ánh sáng quán cà phê hoặc nhà hàng.
                 </span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#7447E8] mt-1.5 shrink-0" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#7054AE] mt-1.5 shrink-0" />
                 <span>
                   <strong>Chất liệu khuyên dùng:</strong> Decal nhựa chống nước (cán mờ hoặc bóng) hoặc mica để bàn chữ T/chữ L.
                 </span>
@@ -262,13 +269,13 @@ export const QRView: React.FC<QRViewProps> = ({ shop, onOpenGuestView }) => {
           </div>
 
           {/* Online Cloud Sync Notice */}
-          <div className="bg-white rounded-2xl p-4 border border-[#EFE5D9] text-xs text-[#6E6779] space-y-1.5 font-medium">
-            <div className="flex items-center gap-2 text-[#241E35] font-bold">
+          <div className="bg-[#FFFCF7] rounded-2xl p-4 border border-[#E2D8CF] text-xs text-[#746E79] space-y-1.5 font-medium">
+            <div className="flex items-center gap-2 text-[#163E37] font-bold">
               <FileCheck className="w-4 h-4 text-emerald-600" />
-              <span>Đồng bộ thực đơn đám mây (Online Cloud)</span>
+              <span>Thực đơn trực tuyến</span>
             </div>
             <p>
-              Hệ thống đã kết nối cơ sở dữ liệu Firebase Firestore. Thực đơn xuất bản được lưu trữ trực tuyến để mọi khách hàng quét mã từ điện thoại cá nhân (4G/Wi-Fi bất kỳ) đều truy cập mượt mà.
+              Sau khi xuất bản thành công, menu khách được lưu trên đám mây. Để chia sẻ cho điện thoại khác, ứng dụng cần có địa chỉ web truy cập được từ thiết bị đó.
             </p>
           </div>
         </div>

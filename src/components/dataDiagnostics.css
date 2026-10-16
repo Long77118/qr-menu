@@ -1,0 +1,12 @@
+.data-diagnostics{position:fixed;right:16px;bottom:16px;z-index:40;color:#163e37;font:12px/1.5 var(--font-body);max-width:calc(100vw - 32px)}
+.data-diagnostics-toggle{display:flex;gap:12px;align-items:center;min-height:44px;padding:10px 14px;border-radius:12px;background:#163e37;color:#fffaf3;box-shadow:0 6px 22px #163e3720}
+.data-diagnostics-toggle>span{font-size:10px;color:#e5dcef}
+.data-diagnostics section{position:absolute;bottom:54px;right:0;width:min(400px,calc(100vw - 32px));max-height:70dvh;overflow:auto;background:#fffcf7;border:1px solid #d9cbe3;border-radius:16px;padding:18px;box-shadow:0 12px 40px #163e3720}
+.data-diagnostics h2{font-size:16px;margin:0 0 8px}
+.data-diagnostics p{font-size:11px;line-height:1.6;color:#746b79;margin:8px 0}
+.data-diagnostics dl>div{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid #163e3710}
+.data-diagnostics dd{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap;margin:0}
+.data-diagnostics-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.data-diagnostics-actions button{min-height:44px;padding:8px 10px;border-radius:9px;border:1px solid #d9cbe3;background:#eee5f3}
+.data-diagnostics :is(button,a):focus-visible{outline:2px solid #80649a;outline-offset:3px}
+.data-diagnostics [role=status]{display:block;font-size:10px;color:#746b79;margin-top:6px}
